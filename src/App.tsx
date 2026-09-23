@@ -22,21 +22,21 @@ export default function App() {
           index={1}
           number={profile.sections[1].number}
           title="Hobbies"
-          body="Projects, placeholder — Phase 4."
+          body="Sports, art, vibe coding, sleeping."
         />
         <Placeholder
           id="experiments"
           index={2}
           number={profile.sections[2].number}
           title="Learnings"
-          body="Fields I'm exploring, placeholder — Phase 5."
+          body="Prompt engineering, Google skills, Claude Code, Google Cloud."
         />
         <Placeholder
           id="about"
           index={3}
           number={profile.sections[3].number}
           title="About"
-          body="Curiosity, the pilot dream, sports, friends — Phase 5."
+          body="A boy who wants to explore the world, learn new things, meet different people, make friends and live a happy life."
         />
         <Contact index={4} number={profile.sections[4].number} />
       </main>

@@ -10,8 +10,8 @@ export type SocialLink = {
 }
 
 export const contact = {
-  heading: "Let's talk",
-  email: 'hello@harshitkhetan.com',
+  heading: "Let's connect and build something crazyyy!!!",
+  email: 'harshiit107@gmail.com',
   timeZone: 'Asia/Kolkata',
   // TODO(phase-6): confirm handles/URLs before launch.
   socials: [

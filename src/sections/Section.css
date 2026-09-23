@@ -117,6 +117,10 @@
   text-shadow: var(--text-scrim);
 }
 
+#about .section__body {
+  text-align: justify;
+}
+
 /* The reveal. Each line sits in its own mask and slides out of it as the
    aircraft passes the section — one orchestrated moment, not a fade-up on
    everything. The mask is a real clip (overflow), so the line arrives rather

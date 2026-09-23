@@ -51,7 +51,12 @@
 }
 
 .contact__heading {
-  font-size: var(--display-md);
+  font-family: var(--font-body);
+  font-size: clamp(1.5rem, 4vw, 3.25rem);
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0;
+  max-width: 28ch;
 }
 
 .contact__email {

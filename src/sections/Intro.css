@@ -1,0 +1,38 @@
+/* Boot line: types on with a clipped-width steps() animation (cheap, no per-
+   frame JS), holds, then cross-fades out on skip/timeout. Sits above the
+   eyebrow so it reads as a console line preceding the rest of the HUD. */
+.intro__boot {
+  display: inline-block;
+  max-width: 100%;
+  margin-bottom: var(--space-6);
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 1px solid var(--dim);
+  animation: intro-boot-type 0.9s steps(28, end) forwards;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+.intro__boot[data-exiting='true'] {
+  opacity: 0;
+}
+
+@keyframes intro-boot-type {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro__boot {
+    animation: none;
+    width: 100%;
+  }
+}
+
+.intro__name {
+  max-width: none;
+}
