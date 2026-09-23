@@ -27,13 +27,15 @@ export const credits: Credit[] = [
 ]
 
 /**
- * TODO(phase-6): render this in the CONTACT footer. CC BY 4.0 requires the
- * credit to be visible wherever the work is shared, so the site cannot ship
- * without it. One mono line is enough, e.g.:
+ * Rendered in the CONTACT footer by `src/sections/Contact.tsx` — title links to
+ * `sourceUrl`, author to `authorUrl`, licence to `licenseUrl`. CC BY 4.0 requires
+ * that credit to stay visible, so do not remove it from the footer. The full
+ * statement is kept verbatim in `plane.glb/license.txt`.
  *
- *   Socata ST 10 "Diplomate" by helijah — CC BY 4.0
- *
- * with the title linking to `sourceUrl`, the author to `authorUrl` and the
- * licence to `licenseUrl`. The full statement is kept verbatim in
- * `plane.glb/license.txt`.
+ * Other bundled third-party assets and their licence files:
+ * - Fonts: `public/fonts/*-OFL.txt` (SIL OFL 1.1) — see `FONTS.md`.
+ * - `public/textures/cloud.png`: byte-identical to `pmndrs/drei-assets/cloud.png`
+ *   (the @react-three/drei default cloud sprite). That asset repo declares no
+ *   licence, so provenance is known but terms are unstated — the one asset here
+ *   without an explicit grant.
  */
