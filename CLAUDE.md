@@ -20,7 +20,7 @@ EXPERIMENTS turbulence — the path goes noisy, the airframe jitters, instrument
 ABOUT       descent; everything slows, calm and sparse
 CONTACT     touchdown; the contrail cuts and the world fades — a deliberate ending
 ```
-The aircraft should read as an instrument, not a toy plane: hairline stroke, the same weight as the HUD. Its behavior: banks toward the cursor, pitch from the path tangent, contrail length from scroll velocity, idle drift, smooth state transitions. Scroll progress drives altitude, so every HUD number is a function of it and never arbitrary.
+Since Phase 2A the flight is real 3D and the route is invisible: no drawn path, no waypoint markers. The aircraft is a glTF model flying in a dusk sky, holding the side of the screen opposite the text and gliding to the next zone as the section changes. Its behaviour: coordinated turns (roll leads, yaw follows), a pitch-up on fast scroll that settles, idle bob and light turbulence, propeller spin tied to speed, a lean toward the cursor. Scroll progress drives altitude, so every HUD number is a function of it and never arbitrary.
 
 ## Sections (in order)
 `01 INTRO` · `02 WORK` · `03 EXPERIMENTS` · `04 ABOUT` · `05 CONTACT` (+ `/work/:slug` detail pages)
@@ -47,8 +47,8 @@ src/
   styles/           # tokens.css, fonts.css, global.css
   components/       # hud/ (instruments), ui/ (type reveals, links, cursor)
   sections/         # Intro, Work, Experiments, About, Contact
-  flight/           # profile.ts (the curve), path.ts (sampler), store.ts (one rAF loop), FlightLayer.tsx
-  gl/               # World.tsx (shared canvas + state machine), Aircraft.tsx, env states, experiments/, shaders/
+  flight/           # profile.ts (the flight as data), track.ts (progress -> phase/section), store.ts (one rAF loop)
+  gl/               # World.tsx (lazy canvas + fallback), Scene.tsx (sky/light/fog), Plane.tsx, CloudField.tsx, zones.ts
   hooks/            # useLenis, useSectionState, useReducedMotion, useIsTouch
   pages/            # Home.tsx, Project.tsx
 public/fonts/       # self-hosted woff2 (see FONTS.md)
@@ -65,7 +65,7 @@ public/media/       # webp/avif images, mp4 + webm videos, posters
 ## Rules
 - Content only in `src/content/*`. Missing data → typed placeholder marked `// TODO`. Never invent achievements.
 - One fixed canvas behind the DOM. World state is driven by the active section (`useSectionState`) and interpolated, never swapped abruptly. DOM media that needs shader effects registers its rect so GL planes follow it.
-- The site must feel intentional with the 3D disabled (fallback: the SVG flight layer plus the grain — PLAN.md Phase 2 keeps it permanently).
+- The site must feel intentional with the 3D disabled (fallback: a painted dusk gradient and a still aircraft glyph — `src/gl/SkyFallback.tsx`).
 - Performance: 60fps on a mid laptop, LCP < 2.5s, initial JS < 250KB gz (three.js lazy-loaded), DPR capped at 1.75, pause rendering when the tab is hidden, dispose GL resources on unmount, lazy-load experiments only when in view.
 - Mobile/touch: simplified world (fewer particles, cheaper shaders), no cursor effects, native scroll, video posters.
 - `prefers-reduced-motion`: no boot sequence, no scroll-driven distortion, world stays static, fades only.
@@ -84,4 +84,10 @@ public/media/       # webp/avif images, mp4 + webm videos, posters
 ## Plan
 Build order and architecture live in PLAN.md. Read only the phase you are asked for.
 Sections: 01 INTRO, 02 WORK, 03 EXPERIMENTS, 04 ABOUT, 05 CONTACT. The "qualities" list sits inside INTRO (no extra section).
-The flight path routes through margins and gutters and never crosses headings or body text.
+There is **no visible flight path**. The aircraft flies freely in a realistic 3D dusk sky (Phase 2A):
+one lazy R3F canvas behind the DOM, drei `<Sky>` at dusk, three parallax cloud layers that stream past.
+The world moves, the camera does not. The plane holds a screen zone on the side **opposite** each
+section's text and glides to the new zone when the section changes. All motion is critically damped
+springs — never keyframes — so nothing snaps on a fast flick or a reversed scroll.
+`src/flight/store.ts` stays the single source of truth (progress, velocity, phase, section); the GL
+layer reads it and writes the aircraft's attitude back for the HUD.

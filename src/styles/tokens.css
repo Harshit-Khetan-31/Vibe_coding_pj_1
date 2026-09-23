@@ -38,6 +38,17 @@
   --content-w: calc(100vw - (2 * var(--margin-x)));
   --col: calc((var(--content-w) - (11 * var(--gutter))) / var(--grid-cols));
 
+  /* ---- flight lanes ----------------------------------------------- */
+  /* The path routes through these bands and nothing else. Sections pad
+     themselves by the same values, so a margin change moves both at once
+     and the path can never end up over the text. See src/flight/layout.ts. */
+  --rail-w: clamp(64px, 10vw, 136px);      /* nav + instrument column */
+  --flight-lane: clamp(38px, 6vw, 88px);   /* width of one path lane */
+  --flight-clear: clamp(14px, 2vw, 30px);  /* lane → text gap, must exceed the
+                                              aircraft's half span plus drift */
+  --flight-pad-left: calc(var(--rail-w) + var(--flight-lane) + var(--flight-clear));
+  --flight-pad-right: calc(var(--flight-lane) + var(--flight-clear));
+
   /* ---- spacing (4px base) ----------------------------------------- */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -65,6 +76,13 @@
   --z-grain: 3;
 
   color-scheme: dark;
+}
+
+/* Touch layouts move the nav to the bottom, so the rail column collapses. */
+@media (max-width: 768px) {
+  :root {
+    --rail-w: 0px;
+  }
 }
 
 /* breakpoints used directly in media queries: 480 / 768 / 1024 / 1440 */

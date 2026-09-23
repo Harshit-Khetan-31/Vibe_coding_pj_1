@@ -113,7 +113,30 @@ flight layer; its damped-pointer pattern is reused for the cursor parallax.
   - instruments read out live and call out waypoints on approach
 - Sections stay as placeholders. Verify 60fps with DevTools before moving on.
 
-### Phase 2 — WebGL upgrade
+### Phase 2A — concept change: free flight, no path (SUPERSEDES Phase 2 below)
+
+The visible route is **dropped**. There is no SVG spine, no dashes, no waypoint markers — the aircraft
+flies freely in a realistic 3D dusk sky and the page reads as an editorial layer over a real world.
+
+- `src/flight/store.ts` keeps its job (progress, velocity, phase, section) but no longer resolves a
+  curve. `src/flight/track.ts` maps progress → phase / section / instrument values from the measured
+  section boxes; `path.ts`, `FlightLayer.tsx` and `PathDebug.tsx` are gone.
+- One lazy-loaded `<Canvas>` behind the DOM, `pointer-events: none`, DPR ≤ 1.75, frameloop paused
+  while the tab is hidden. drei `<Sky>` at dusk (low warm sun), soft fog, and the same sky baked once
+  into an environment map so the aircraft is lit by the sky it flies in.
+- Three parallax `<Clouds>` layers (near / mid / far). **The world moves, not the camera:** clouds
+  stream toward the viewer at base cruise speed + scroll velocity, and recycle when they pass behind.
+- Aircraft: a real glTF (`public/models/plane.glb`, meshopt + webp), normalized in code — centered,
+  nose rotated to −Z, and auto-scaled from its bounding box to ~30% of viewport width on desktop and
+  ~55% on mobile, at any screen size.
+- Flight model, all critically damped springs: the plane holds a screen zone on the side opposite the
+  active section's text and glides to the next one; coordinated turns (roll leads, yaw follows), a
+  pitch-up on fast scroll that settles, idle bob plus low-frequency turbulence noise, propeller spin
+  tied to speed. No keyframes anywhere, so fast flicks and reversals cannot snap.
+- Fallback for reduced motion or no WebGL: a static dusk gradient and a still aircraft glyph.
+- The aircraft model is CC BY — the footer credit line is a `// TODO` until the footer exists.
+
+### Phase 2 — WebGL upgrade (superseded by 2A)
 - One shared `<Canvas>` behind the DOM, three.js lazy-loaded behind a capability check.
 - Low-poly aircraft flying the *same* sampled path, subscribed to the same store; per-phase world states
   (atmosphere, light, depth) interpolated, never swapped.
@@ -156,12 +179,12 @@ flight layer; its damped-pointer pattern is reused for the cursor parallax.
 Per phase: `npm run typecheck && npm run build`, then `npm run dev` and check by hand at **375 / 768 / 1440**.
 
 Specific to this design:
-- **Path never touches text.** Load `?debug=path` at all three widths and scroll the full page — no
-  intersection between the path stroke and any text-safe rectangle.
+- **Aircraft never covers text.** (2A) At all three widths, scroll the full page: the aircraft holds
+  the side opposite the text column and never crosses into it, including at full drift and full bank.
 - **Scroll the full page slowly and fast.** Plane must never leave the path, jump, or flip its bank angle
   at phase boundaries. Fast flicks are the failure case — check both directions.
-- **SVG and WebGL agree** (from Phase 2): force the fallback and confirm the plane is at the same point
-  on the path at the same scroll position.
+- **Fallback reads as intentional** (2A): force reduced motion and force WebGL off; both must show the
+  painted dusk and a still aircraft, with the HUD still resolving phase and section from the store.
 - **DevTools Performance**, 6× CPU throttle, scroll for 10s: no long tasks, no per-frame React renders
   (React DevTools Profiler silent except at phase changes).
 - **Reduced motion** on: no boot line, no takeoff, plane parked, content fully readable.

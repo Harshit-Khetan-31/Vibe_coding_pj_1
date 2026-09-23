@@ -1,0 +1,116 @@
+/* The instrument column lives in the nav rail, left of the flight lane, so the
+   aircraft never flies behind a readout. */
+.hud {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-hud);
+  pointer-events: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-mono);
+  text-transform: uppercase;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.hud__stack {
+  position: absolute;
+  left: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hud__stack--top {
+  top: var(--space-6);
+}
+
+.hud__stack--bottom {
+  bottom: var(--space-6);
+}
+
+.hud__inst {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.1;
+}
+
+.hud__key {
+  opacity: 0.45;
+  font-size: 0.625rem;
+}
+
+.hud__val {
+  color: var(--fg);
+  opacity: 0.85;
+}
+
+.hud__bar {
+  display: block;
+  width: 44px;
+  height: 1px;
+  margin-top: 3px;
+  background: var(--line-strong);
+}
+
+.hud__bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--fg);
+  opacity: 0.7;
+  transform-origin: left center;
+  transform: scaleX(0.04);
+}
+
+.hud__phase {
+  color: var(--fg);
+  opacity: 0.85;
+}
+
+.hud__index {
+  opacity: 0.6;
+}
+
+.hud__callout {
+  min-height: 1.1em;
+  color: var(--accent);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity var(--dur-fast) var(--ease-ui),
+    transform var(--dur-fast) var(--ease-ui);
+}
+
+.hud__callout[data-active='true'] {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Touch: no cursor readout, and the nav owns the bottom of the screen. */
+@media (max-width: 768px) {
+  .hud__stack--bottom {
+    bottom: auto;
+    top: var(--space-4);
+    left: auto;
+    right: var(--space-4);
+    align-items: flex-end;
+    text-align: right;
+  }
+
+  .hud__stack--top {
+    top: var(--space-4);
+    left: var(--space-4);
+  }
+
+  .hud__cursor,
+  .hud__bar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud {
+    opacity: 1 !important;
+  }
+}

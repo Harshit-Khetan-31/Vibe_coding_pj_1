@@ -1,0 +1,16 @@
+/* The canvas is scenery: fixed behind every layer, and never in the way of a
+   click, a caret or a scroll gesture. */
+
+.world {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-world);
+  pointer-events: none;
+}
+
+.world canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none;
+}

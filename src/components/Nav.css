@@ -21,6 +21,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  max-width: calc(var(--rail-w) - var(--space-6));
   transform: translateY(-50%);
   text-decoration: none;
   white-space: nowrap;
@@ -31,21 +32,21 @@
   height: 1px;
   background: var(--dim);
   transition:
-    width 0.35s var(--ease-out),
-    background 0.35s var(--ease-out);
+    width 0.35s var(--ease-ui),
+    background 0.35s var(--ease-ui);
 }
 
 .nav__label {
   font-family: var(--font-display);
-  font-size: 0.7rem;
+  font-size: 0.64rem;
   letter-spacing: 0.04em;
   color: var(--dim);
   opacity: 0;
   transform: translateX(-4px);
   transition:
-    opacity 0.35s var(--ease-out),
-    transform 0.35s var(--ease-out),
-    color 0.35s var(--ease-out);
+    opacity 0.35s var(--ease-ui),
+    transform 0.35s var(--ease-ui),
+    color 0.35s var(--ease-ui);
 }
 
 .nav__item:hover .nav__label,

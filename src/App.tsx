@@ -1,6 +1,7 @@
 import { useLenis } from './hooks/useLenis'
 import { Nav } from './components/Nav'
-import { GridField } from './backdrop/GridField'
+import { World } from './gl/World'
+import { Hud } from './components/hud/Hud'
 import { Placeholder } from './sections/Placeholder'
 import { profile } from './content/profile'
 
@@ -9,7 +10,8 @@ export default function App() {
 
   return (
     <>
-      <GridField />
+      <World />
+      <Hud />
       <Nav />
       <main className="content">
         <Placeholder

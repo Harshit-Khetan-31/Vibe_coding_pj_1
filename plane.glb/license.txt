@@ -1,0 +1,11 @@
+Model Information:
+* title:	Socata ST 10 "Diplomate"
+* source:	https://sketchfab.com/3d-models/socata-st-10-diplomate-2c0eba4e3e9545289c50fc739b49a815
+* author:	helijah (https://sketchfab.com/helijah)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Socata ST 10 "Diplomate"" (https://sketchfab.com/3d-models/socata-st-10-diplomate-2c0eba4e3e9545289c50fc739b49a815) by helijah (https://sketchfab.com/helijah) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

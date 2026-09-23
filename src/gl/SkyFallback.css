@@ -1,0 +1,67 @@
+/* A still of the same dusk the 3D layer renders: horizon glow low in the frame,
+   a warm sun just above it, cooling to near-black overhead. No motion at all —
+   this is what reduced-motion and no-WebGL visitors get. */
+
+.skyfall {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-world);
+  pointer-events: none;
+  background:
+    radial-gradient(
+      120% 62% at 72% 76%,
+      rgb(255 176 116 / 0.5) 0%,
+      rgb(199 112 94 / 0.28) 32%,
+      rgb(58 42 58 / 0) 72%
+    ),
+    linear-gradient(to bottom, #0a0a12 0%, #1d1726 38%, #4a2f38 68%, #8a4e3f 88%, #c3714a 100%);
+}
+
+.skyfall__sun {
+  position: absolute;
+  left: 72%;
+  top: 76%;
+  width: clamp(80px, 12vw, 190px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgb(255 226 186 / 0.85) 0%,
+    rgb(255 168 104 / 0.45) 34%,
+    rgb(255 140 80 / 0) 70%
+  );
+}
+
+.skyfall__craft {
+  position: absolute;
+  right: 12vw;
+  top: 44%;
+  width: clamp(120px, 30vw, 340px);
+  aspect-ratio: 1;
+  transform: translateY(-50%);
+}
+
+@media (max-width: 768px) {
+  .skyfall__craft {
+    right: 50%;
+    top: 22%;
+    width: 55vw;
+    transform: translate(50%, -50%);
+  }
+}
+
+.skyfall__craft path {
+  fill: none;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.skyfall__outline {
+  stroke: rgb(236 234 228 / 0.7);
+}
+
+.skyfall__spine,
+.skyfall__canopy {
+  stroke: rgb(236 234 228 / 0.35);
+}
