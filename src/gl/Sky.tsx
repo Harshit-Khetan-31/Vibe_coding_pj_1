@@ -78,15 +78,22 @@ const FRAGMENT = /* glsl */ `
     return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
   }
 
-  /* detail fades the small octaves out near the horizon, where one pixel covers
-     several kilometres of sea and the high frequencies would only alias */
+  /* Detail fades the small octaves out near the horizon, where one pixel covers
+     several kilometres of sea and the high frequencies would only alias.
+
+     Each octave is also rotated as well as scaled. Without the rotation every
+     octave shares the same axes, the value-noise lattice lines up with itself
+     and the sea shows a faint square grid — the "tiling" you can see once you
+     have noticed it. An irrational-ish angle per octave means the lattices
+     never agree again. */
   float fbm(vec2 p, float detail) {
+    const mat2 rot = mat2(0.8384, 0.545, -0.545, 0.8384);
     float v = 0.0;
     float a = 0.5;
     for (int i = 0; i < 5; i++) {
       float k = i < 2 ? 1.0 : detail;
       v += a * k * vnoise(p);
-      p = p * 2.03 + 17.1;
+      p = rot * p * 2.03 + 17.1;
       a *= 0.5;
     }
     return v;
@@ -119,16 +126,21 @@ const FRAGMENT = /* glsl */ `
       float detail = smoothstep(0.02, 0.20, below);
 
       float f = fbm(p, detail);
-      float tops = smoothstep(0.42, 0.66, f);
-      float rim = smoothstep(0.50, 0.70, f) - smoothstep(0.64, 0.88, f);
+      // a wide ramp: a tight one turns the sea into hard-edged islands, and it
+      // is meant to be a soft deck seen from a long way up
+      float tops = smoothstep(0.30, 0.80, f);
+      float rim = smoothstep(0.44, 0.70, f) - smoothstep(0.62, 0.92, f);
       float sunward = 0.5 + 0.5 * dot(normalize(vec2(d.x, d.z) + 1e-5), normalize(uSun.xz));
 
       vec3 sea = mix(uSeaShade, uSeaLit, tops);
-      sea += uGlow * rim * (0.06 + 0.22 * sunward);
-      // the sea loses its contrast before it reaches eye level, so the two
-      // halves of the frame meet in haze instead of along an edge
-      sea = mix(uHaze, sea, smoothstep(0.02, 0.26, below));
-      col = mix(col, sea, smoothstep(0.0, 0.22, below));
+      // the golden rims are what makes it read as lit from the side rather than
+      // as a texture, so they carry more of the colour than the tops do
+      sea += uGlow * rim * (0.08 + 0.3 * sunward);
+      // the sea loses its contrast well before it reaches eye level, so the two
+      // halves of the frame meet in haze instead of along an edge — and the
+      // far field, where any repeat would show, is haze rather than sea
+      sea = mix(uHaze, sea, smoothstep(0.03, 0.40, below));
+      col = mix(col, sea, smoothstep(0.0, 0.26, below));
     }
 
     // ACES rolls the highlights off hard, so the palette is pushed a little

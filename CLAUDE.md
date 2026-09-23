@@ -20,7 +20,7 @@ EXPERIMENTS turbulence — the path goes noisy, the airframe jitters, instrument
 ABOUT       descent; everything slows, calm and sparse
 CONTACT     touchdown; the contrail cuts and the world fades — a deliberate ending
 ```
-Since Phase 2A the flight is real 3D and the route is invisible: no drawn path, no waypoint markers. The aircraft is a glTF model flying in a dusk sky. Since Phase 2B it is seen from the **side / three-quarter**, not from behind, and it **crosses** the screen: one continuous serpentine weaves left ↔ right, changing sides only in the vertical gaps between sections and settling beside each section's text, never over it. Its behaviour: nose along the direction of travel, banked into every turn, a pitch-up on fast scroll that settles, idle bob and light turbulence, a real 3-blade propeller whose blades cross-fade into a blur disc with rpm, a lean toward the cursor. A sustained reversal of travel produces a banked 180° U-turn through the front — the aircraft is never seen tail-first. Scroll progress drives altitude, so every HUD number is a function of it and never arbitrary.
+Since Phase 2A the flight is real 3D and the route is invisible: no drawn path, no waypoint markers. The aircraft is a glTF model flying in a dusk sky. Since Phase 2C it **never parks**: one continuous sinusoidal serpentine runs down the whole page, weaving left ↔ right and gently up ↕ down, so the aeroplane is always flying and the page has one long S through it. Facing follows travel: scrolling down it flies **toward** the viewer (three-quarter front, propeller turning), scrolling up it flies **away** (three-quarter rear, tail toward you), and the nose leads along the curve so it is never a flat side profile. A sustained reversal turns it through 180° in a little under a second. Bank comes from the path's own curvature, pitch from its climb rate. Idle is a gentle hover and nothing else. Scroll progress drives altitude, so every HUD number is a function of it and never arbitrary.
 
 ## Sections (in order)
 `01 INTRO` · `02 WORK` · `03 EXPERIMENTS` · `04 ABOUT` · `05 CONTACT` (+ `/work/:slug` detail pages)
@@ -48,7 +48,7 @@ src/
   components/       # hud/ (instruments), ui/ (type reveals, links, cursor)
   sections/         # Intro, Work, Experiments, About, Contact
   flight/           # profile.ts (the flight as data), track.ts (progress -> phase/section), store.ts (one rAF loop)
-  flight/route.ts   # the serpentine + the finale window, as a function of progress
+  flight/route.ts   # the serpentine + the finale window, in closed form over progress
   gl/               # World.tsx (lazy canvas + fallback), Scene.tsx (sky/light/fog), Plane.tsx, Propeller.tsx, CloudField.tsx
   hooks/            # useLenis, useSectionState, useReducedMotion, useIsTouch
   pages/            # Home.tsx, Project.tsx
@@ -92,19 +92,32 @@ nothing snaps on a fast flick or a reversed scroll.
 `src/flight/store.ts` stays the single source of truth (progress, velocity, phase, section, reveals);
 the GL layer reads it and writes the aircraft's attitude and lateral drift back for the HUD and clouds.
 
-Phase 2B (current):
-- **Side / three-quarter view.** The camera is untouched — the *aircraft* turns. Its heading lives on
-  one arc centred on "nose at the camera"; flying-right and flying-left sit the same distance either
-  side. A spring between them therefore sweeps through the front, which is the U-turn, the
-  three-quarter view and the no-tail-first guarantee in one mechanism.
-- **Serpentine.** `src/flight/route.ts` is the whole route as a pure function of progress. Sides
-  change only between `u = 0.86` of one section and `u = 0.14` of the next, where the middle band of
-  the screen is empty; the aircraft climbs through the gap as it crosses.
+Phase 2C (current):
+- **One continuous path.** `src/flight/route.ts` is a sinusoid in closed form over progress — about
+  one full swing per section laterally, half that frequency vertically. No dwell, no parking, no
+  per-section zones. Because the tangent and the curvature are closed-form rather than differenced,
+  the heading and the bank are clean at any scroll speed, and scrolling up is the same curve read
+  backwards.
+- **Facing follows travel.** Travel is (depth = scroll direction, lateral = the path's tangent); the
+  heading is `atan2` of that vector. Down → three-quarter front with the propeller visible, up →
+  three-quarter rear, head-on at the ends of each swing, never flat side-on. Below `TOP_SETTLE` it
+  settles facing the viewer whatever the last scroll direction was.
 - **Reversal.** A hysteresis gate (speed threshold + dwell, `stepGate` in `src/gl/spring.ts`) decides
-  a reversal is real before the aircraft commits, so jitter cannot start a U-turn. Up and down are
-  the same curve, mirrored.
+  a reversal is real before the aircraft commits; the turn is then just the heading spring covering
+  180° in a little under a second.
+- **Bank and pitch.** Bank = path curvature (steady, peaks at the ends of each swing) + heading rate
+  (the transient that rolls it through a reversal), both flipping with travel direction. Pitch = the
+  route's climb rate plus the scroll-velocity nose-up.
 - **Section reveal.** Line-mask + fade, triggered by the store when the aircraft passes the section.
   Sticky. Nav clicks reveal instantly (`revealSection`); reduced motion reveals with no transition.
-- **Finale.** The last ~15% of the scroll: the aircraft centres, turns nose-on, and flies through the
-  camera with its propeller disc filling the frame, clearing the screen for CONTACT. It is a pure
-  function of progress, so scrolling back up replays it in reverse — nose *away* while receding.
+- **Finale.** The last ~15% of the scroll: the aircraft centres horizontally and vertically, turns
+  nose-on, and flies through the camera with its propeller disc filling the frame, clearing the
+  screen for CONTACT. A pure function of progress, so scrolling back up replays it in reverse —
+  nose *away* while receding.
+- **Text over the sky.** No scrims. Contrast comes from `--text-scrim` text-shadows plus one
+  edgeless full-width gradient band per section, masked to zero at both ends so it has no shape.
+  Reveal transforms stay `translate3d` in both states, which keeps the type on its own layer with
+  grayscale antialiasing — subpixel AA was fringing the headlines. Bloom sits above everything but
+  the sun disc, and the god rays are weaker, so nothing rings.
+- **Reduced motion.** The canvas is never mounted; the painted-dusk fallback stands in. If it ever
+  is, `isReducedMotion()` zeroes the weave and the aircraft holds a calm pose.

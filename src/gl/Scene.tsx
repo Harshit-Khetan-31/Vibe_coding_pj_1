@@ -60,7 +60,7 @@ export default function Scene({ frameloop }: { frameloop: 'always' | 'never' }) 
         intensity={2.4}
         color="#ffd2a4"
       />
-      <hemisphereLight args={['#ffc894', '#6f6698', 0.62]} />
+      <hemisphereLight args={['#ffc894', '#95808f', 0.62]} />
 
       <Suspense fallback={null}>
         {/* frames={1}: the sky never changes, so bake it once and stop */}

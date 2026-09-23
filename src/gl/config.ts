@@ -62,11 +62,23 @@ export const SKY_HORIZON = '#ffc06b' // warm amber
 export const SKY_HAZE = '#f6b27e' // what the cloud sea dissolves into
 export const SUN_GLOW = '#ffd9a2'
 
-/** The cloud sea below: lit tops, and the lavender shade between them. */
-export const SEA_LIT = '#ffe4bd'
-export const SEA_SHADE = '#7d76a6'
-/** Noise scale and how fast the sea slides past at cruise. */
-export const SEA_SCALE = 2.4
+/**
+ * The cloud sea below: golden lit tops, and the shade between them.
+ *
+ * The shade used to be a saturated blue-lavender, which at this scale read as
+ * patches of purple sitting in an otherwise warm frame. It is now a warm dusty
+ * mauve — still cool *relative* to the tops, which is all that is needed for
+ * the sea to have form, but with nowhere near enough saturation to become a
+ * colour of its own.
+ */
+export const SEA_LIT = '#ffdcae'
+export const SEA_SHADE = '#c0a6a8'
+/**
+ * Feature scale, and how fast the sea slides past at cruise. The scale is low
+ * on purpose: a high one puts several noise cells in every pixel near the
+ * horizon, where the repeat becomes legible as a texture rather than as cloud.
+ */
+export const SEA_SCALE = 0.95
 export const SEA_DRIFT = 0.12
 
 export const FOG_COLOR = '#eeb184'
@@ -127,7 +139,7 @@ export const CLOUD_LAYERS: CloudLayer[] = [
     volume: 7,
     flatten: 1,
     opacity: 0.3,
-    color: '#f4eef8',
+    color: '#f7f0ec',
     growth: 6,
   },
   {
@@ -143,7 +155,7 @@ export const CLOUD_LAYERS: CloudLayer[] = [
     volume: 12,
     flatten: 1,
     opacity: 0.26,
-    color: '#e7e0f2',
+    color: '#efe4e0',
     growth: 7,
   },
   {
@@ -159,7 +171,7 @@ export const CLOUD_LAYERS: CloudLayer[] = [
     volume: 22,
     flatten: 1,
     opacity: 0.18,
-    color: '#d8d0e8',
+    color: '#e2d3d2',
     growth: 8,
   },
   {
@@ -184,48 +196,51 @@ export const CLOUD_LAYERS: CloudLayer[] = [
 export const CLOUD_TEXTURE = '/textures/cloud.png'
 
 /**
- * How hard the aircraft's lateral travel pushes the weather the other way. The
- * side view is only convincing if crossing the screen moves the *world*, not
- * just the aeroplane.
+ * How hard the aircraft's lateral travel pushes the weather the other way. Low,
+ * and lower than it was: the aircraft now weaves continuously rather than
+ * crossing once per section, so anything stronger sloshes the whole sky back
+ * and forth instead of reading as parallax against the weave.
  */
-export const CLOUD_LATERAL = 0.12
+export const CLOUD_LATERAL = 0.05
 
 /* ---- the view ------------------------------------------------------------ */
 
 /**
- * Phase 2B replaced the chase/tail view with a side / three-quarter one, and it
- * is the *aircraft* that turns, not the camera — the golden-hour framing, the
- * sun position and the god rays are all tuned to a camera at the origin looking
- * down -Z, and moving it would re-grade the whole picture.
+ * The facing model. The camera never moves — the golden-hour framing, the sun
+ * position and the god rays are all tuned to a camera at the origin looking
+ * down -Z, and moving it would re-grade the whole picture. So the *aircraft*
+ * turns, and its heading is built from the direction it is actually travelling.
  *
- * So: the aircraft's heading lives on a single arc centred on "nose pointing at
- * the camera" (PI). Flying right sits `HEADING_SWEEP` to one side of it, flying
- * left the same distance to the other, and the spring between them sweeps
- * *through* PI. That gives three things for free: a three-quarter view in both
- * directions (never a flat side-on silhouette), a banked turn through the front
- * whenever the direction of travel reverses, and a heading that can never reach
- * 0 — which is the tail-first view this phase exists to get rid of.
+ * Travel has two components: a depth one, which is simply which way you are
+ * scrolling (down = flying toward you, up = flying away), and a lateral one,
+ * which is the path's own tangent. `VIEW_SWEEP_DEG` is how far off the view
+ * axis the aircraft gets at full lateral lean — so it reads as a three-quarter
+ * at the crossings and as head-on (or tail-on) at the ends of each swing, and
+ * it is never a flat side profile.
  */
-export const VIEW_TOWARD_CAMERA_DEG = 22
-const HEADING_SWEEP = ((90 - VIEW_TOWARD_CAMERA_DEG) * Math.PI) / 180
-/** Nose at the camera. The middle of the arc, and the finale's heading. */
+export const VIEW_SWEEP_DEG = 44
+export const VIEW_SWEEP = (VIEW_SWEEP_DEG * Math.PI) / 180
+
+/** Nose at the camera, and nose away from it. */
 export const HEADING_AT_CAMERA = Math.PI
-export const HEADING_RIGHT = HEADING_AT_CAMERA + HEADING_SWEEP
-export const HEADING_LEFT = HEADING_AT_CAMERA - HEADING_SWEEP
-/** Nose away from the camera. Only ever reached backing out of the finale. */
 export const HEADING_AWAY = 0
 
 /**
- * The reversal gate. The route's lateral rate (route units per second, where a
- * full crossing is 2) has to exceed this *and* hold its sign for this long
- * before the aircraft commits to turning around — so scroll jitter, a trackpad
- * bounce or a single stray wheel tick can never trigger a U-turn. Low enough
- * that a deliberate slow scroll still reads as travel.
+ * The reversal gate. Scroll velocity (progress per second) has to exceed this
+ * *and* hold its sign for this long before the aircraft commits to turning
+ * around — so jitter, a trackpad bounce or the settle at the end of a flick can
+ * never start a U-turn. `OMEGA_HEADING` then sets how long the turn itself
+ * takes, which is a little under a second.
  */
-export const REVERSAL_SPEED = 0.05
-export const REVERSAL_DWELL = 0.16
-/** The same gate on raw scroll velocity (progress/s), for the finale. */
 export const SCROLL_REVERSAL_SPEED = 0.02
+export const REVERSAL_DWELL = 0.22
+
+/**
+ * Below this much progress the aircraft settles facing the viewer whatever the
+ * last scroll direction was, so the top of the page always opens on the front
+ * of the aeroplane with its propeller turning.
+ */
+export const TOP_SETTLE = 0.035
 
 /* ---- the finale ---------------------------------------------------------- */
 
@@ -251,21 +266,32 @@ export const FINALE_PROP_GROW = 1.35
 /* ---- flight model -------------------------------------------------------- */
 
 /** Spring frequencies, rad/s. Lower = heavier. */
-export const OMEGA_ZONE_X = 1.5 // lateral repositioning: slow, so the turn reads
-export const OMEGA_ZONE_Y = 2.1
+/**
+ * Position. These used to be slow, because they were gliding between two parked
+ * zones and the glide *was* the motion. Now they are chasing a path that is
+ * already smooth and already moving, so they act as a low-pass on it instead:
+ * fast enough that the weave survives an ordinary scroll, slow enough that a
+ * hard flick flattens it out, which is what an aeroplane would do anyway.
+ */
+export const OMEGA_ZONE_X = 6.0
+export const OMEGA_ZONE_Y = 5.0
 export const OMEGA_ROLL = 3.4 // roll leads the turn it is banking into
 export const OMEGA_PITCH = 2.6
-/** Heading: a ~140 degree U-turn settles in about a second. */
-export const OMEGA_HEADING = 4.2
+/** Heading: a 180 degree reversal settles in a little under a second. */
+export const OMEGA_HEADING = 5.0
 /** Depth, used only by the finale's fly-through. */
 export const OMEGA_Z = 5.5
 
 /**
- * Roll per rad/s of turn rate. The aircraft banks because it is turning, not
- * because it is translating — which is what makes the S-curve read as flying.
+ * Bank has two sources, and both are real aerodynamics rather than decoration.
+ * `ROLL_PER_CURVE` is the steady bank held through the curve, proportional to
+ * the path's lateral curvature — hardest at the ends of each swing, zero at the
+ * crossings. `ROLL_PER_TURN` is the transient on top of it, per rad/s of
+ * heading rate, which is what banks the aircraft over during a reversal.
  */
-export const ROLL_PER_TURN = 0.2
-export const ROLL_MAX = 0.85
+export const ROLL_PER_CURVE = 0.42
+export const ROLL_PER_TURN = 0.16
+export const ROLL_MAX = 0.9
 /** Pointer influence on roll — desktop only, and never while manoeuvring. */
 export const ROLL_PER_POINTER = 0.16
 
@@ -274,12 +300,19 @@ export const PITCH_PER_VELOCITY = 0.16
 export const PITCH_MAX = 0.3
 /** Nose follows the vertical component of the manoeuvre too. */
 export const PITCH_PER_VERTICAL = 0.05
+/** And the route's own climb rate, which is where the gentle porpoise shows. */
+export const PITCH_PER_CLIMB = 0.3
 
-/** Idle bob: amplitude in world units, and its frequencies. */
-export const BOB_AMPLITUDE = 0.55
+/** Idle hover: amplitude in world units, and its frequency. */
+export const BOB_AMPLITUDE = 0.5
 export const BOB_RATE = 0.62
-/** Low-frequency turbulence wander, world units and radians. */
+/**
+ * Low-frequency wander. It is gated on idle and on turbulence rather than left
+ * running: while the aircraft is flying the serpentine, a second unrelated
+ * drift on top of it only reads as slop.
+ */
 export const WANDER_AMPLITUDE = 0.9
+export const WANDER_IDLE = 0.22
 export const WANDER_ROLL = 0.1
 export const WANDER_PITCH = 0.045
 
@@ -307,8 +340,8 @@ export const PROP_INK = '#171b2c'
  * On a phone the text is full width, so the aircraft can only offset a little
  * and mostly separates itself vertically instead.
  */
-export const ZONE_X_DESKTOP = 0.52
-export const ZONE_X_MOBILE = 0.26
+export const ZONE_X_DESKTOP = 0.56
+export const ZONE_X_MOBILE = 0.3
 /** On a phone the aircraft separates itself by climbing, not by moving aside. */
 export const ZONE_Y_MOBILE_LIFT = 0.34
 
@@ -335,13 +368,21 @@ export const LIVERY_REG_HEIGHT = 0.34
 
 /* ---- post-processing ----------------------------------------------------- */
 
-/** Bloom is the only effect a phone gets; the rest are desktop-only. */
-export const BLOOM_INTENSITY = 0.3
-export const BLOOM_THRESHOLD = 0.88
-export const BLOOM_SMOOTHING = 0.32
-export const GODRAYS_DENSITY = 0.86
+/**
+ * Bloom is the only effect a phone gets; the rest are desktop-only.
+ *
+ * Both are deliberately restrained. Bloom at a low threshold over a sky this
+ * bright lifts a halo off every high-contrast edge in the frame, including the
+ * headlines sitting in front of it, and mipmap bloom separates that halo into
+ * colour as it spreads. The threshold now sits above everything except the sun
+ * disc itself, which is the only thing that was ever meant to bloom.
+ */
+export const BLOOM_INTENSITY = 0.22
+export const BLOOM_THRESHOLD = 0.96
+export const BLOOM_SMOOTHING = 0.22
+export const GODRAYS_DENSITY = 0.82
 export const GODRAYS_DECAY = 0.93
-export const GODRAYS_WEIGHT = 0.2
-export const GODRAYS_EXPOSURE = 0.32
+export const GODRAYS_WEIGHT = 0.13
+export const GODRAYS_EXPOSURE = 0.22
 export const VIGNETTE_DARKNESS = 0.52
 export const VIGNETTE_OFFSET = 0.32

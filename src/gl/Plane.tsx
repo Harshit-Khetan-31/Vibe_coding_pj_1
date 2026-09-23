@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react'
 import { createPortal, useFrame, useThree } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { Box3, Euler, Group, MathUtils, Mesh, Quaternion, Vector3, type Object3D } from 'three'
-import { getTrack, setAttitude, state } from '../flight/store'
+import { getTrack, isReducedMotion, setAttitude, state } from '../flight/store'
 import { Livery } from './Livery'
 import { Propeller } from './Propeller'
 import { clamp, noise, snapSpring, spring, stepSpring, type Gate, gate, stepGate } from './spring'
@@ -18,8 +18,6 @@ import {
   FOV,
   HEADING_AT_CAMERA,
   HEADING_AWAY,
-  HEADING_LEFT,
-  HEADING_RIGHT,
   MOBILE_MAX_WIDTH,
   MODEL_NOSE_AXIS,
   MODEL_URL,
@@ -30,18 +28,22 @@ import {
   OMEGA_ZONE_X,
   OMEGA_ZONE_Y,
   PITCH_MAX,
+  PITCH_PER_CLIMB,
   PITCH_PER_VELOCITY,
   PITCH_PER_VERTICAL,
   PLANE_DEPTH,
   REVERSAL_DWELL,
-  REVERSAL_SPEED,
-  SCROLL_REVERSAL_SPEED,
   ROLL_MAX,
+  ROLL_PER_CURVE,
   ROLL_PER_POINTER,
   ROLL_PER_TURN,
+  SCROLL_REVERSAL_SPEED,
   SPAN_FRACTION_DESKTOP,
   SPAN_FRACTION_MOBILE,
+  TOP_SETTLE,
+  VIEW_SWEEP,
   WANDER_AMPLITUDE,
+  WANDER_IDLE,
   WANDER_PITCH,
   WANDER_ROLL,
   ZONE_X_DESKTOP,
@@ -170,14 +172,12 @@ export function Plane() {
     z: spring(-PLANE_DEPTH),
     roll: spring(0),
     pitch: spring(0),
-    heading: spring(HEADING_RIGHT),
+    heading: spring(HEADING_AT_CAMERA),
   })
-  /** The reversal gate: +1 travelling right, −1 travelling left. */
-  const travel = useRef<Gate>(gate(1))
-  /** Last frame's route position, and the smoothed rate derived from it. */
-  const lastRouteX = useRef<number | null>(null)
-  const routeRate = useRef(0)
-  /** And on the scroll itself, which is what the finale's nose direction reads. */
+  /**
+   * The reversal gate, on the scroll itself: +1 flying toward the viewer,
+   * −1 flying away. It is the only piece of state in the facing model.
+   */
   const scroll = useRef<Gate>(gate(1))
   const settled = useRef(false)
   const scale = useRef(1)
@@ -221,22 +221,27 @@ export function Plane() {
     const approach = Math.pow(ramp(f, FINALE_PASS_START, FINALE_PASS_END), 1.35)
 
     /* the serpentine -------------------------------------------------------- */
-    const spread = mobile ? ZONE_X_MOBILE : ZONE_X_DESKTOP
+    // The path never stops: position is a closed-form function of smoothed
+    // progress, so the aircraft is flying the whole way down and the only thing
+    // that changes when you stop scrolling is that the curve stops advancing.
+    const still = isReducedMotion()
+    const spread = still ? 0 : mobile ? ZONE_X_MOBILE : ZONE_X_DESKTOP
+    const p = state.progress
     const turb = state.turbulence
-    const calm = 0.3 + 0.7 * state.idle
-    const wander = 0.25 + turb
+    // idle is a hover and nothing else — a second unrelated drift running under
+    // the serpentine reads as slop rather than as air
+    const wander = still ? 0 : WANDER_IDLE * state.idle + turb
+    const calm = still ? 0 : 0.3 + 0.7 * state.idle
 
     const bob = Math.sin(t * BOB_RATE * Math.PI * 2) * BOB_AMPLITUDE * calm * (halfH / 10)
     const wanderX = noise(t, 1.7) * WANDER_AMPLITUDE * wander * (halfW / 14)
     const wanderY = noise(t, 5.9) * WANDER_AMPLITUDE * 0.7 * wander * (halfH / 10)
 
-    const routeNormX = route.x(state.progress)
-    const routeX = routeNormX * spread
+    const routeX = route.x(p) * spread
     // on a phone the text is full width, so the aircraft separates itself by
     // climbing above it rather than by moving aside
-    const routeY = mobile
-      ? route.y(state.progress) * 0.5 + ZONE_Y_MOBILE_LIFT
-      : route.y(state.progress)
+    const climbY = still ? 0 : route.y(p)
+    const routeY = mobile ? climbY * 0.5 + ZONE_Y_MOBILE_LIFT : climbY
 
     // the finale pulls it onto the centreline before it turns at the camera
     const targetX = routeX * halfW * (1 - turning) + wanderX * (1 - turning)
@@ -257,52 +262,60 @@ export function Plane() {
     // the airframe into confetti on the way through
     group.visible = z < FINALE_HIDE_Z
 
-    /* heading: which way is the aircraft actually going? --------------------- */
-    // Direction comes from the *route*, not from the spring. The spring carries
-    // idle bob and turbulence wander, whose velocity is the same order as a slow
-    // crossing's — reading it would have the aircraft turning around on its own
-    // while parked. The route is flat while parked, so its rate is exactly zero
-    // and the only thing that can move it is the scroll.
-    const previous = lastRouteX.current
-    lastRouteX.current = routeNormX
-    const raw = previous === null ? 0 : (routeNormX - previous) / dt
-    routeRate.current += (raw - routeRate.current) * (1 - Math.exp(-dt / 0.1))
-
-    // the gate is the anti-jitter rule on top of that: the rate has to clear a
-    // speed *and* hold its sign for REVERSAL_DWELL before the aircraft commits
-    // to turning around, so a trackpad bounce cannot start a U-turn
+    /* facing: the direction the aircraft is actually travelling ------------- */
+    // Travel has two components. The depth one is simply which way you are
+    // scrolling — down means the page is coming at you, so the aeroplane is
+    // flying toward the viewer and you see its front and its propeller; up
+    // means it is flying away and you see its tail. The lateral one is the
+    // path's own tangent, exact rather than differenced, so the nose leads
+    // along the curve at any scroll speed and swings through head-on at the
+    // ends of each swing instead of ever sitting flat side-on.
+    //
+    // The gate is the anti-jitter rule: the scroll has to clear a speed *and*
+    // hold its sign for REVERSAL_DWELL before the aircraft commits, so a
+    // trackpad bounce cannot start a U-turn. The turn between the two facings
+    // is then just the heading spring covering 180 degrees.
     const direction = stepGate(
-      travel.current,
-      routeRate.current,
-      REVERSAL_SPEED,
-      REVERSAL_DWELL,
-      dt,
-    )
-    // the same rule, on the scroll itself: the finale only reverses on a
-    // sustained upward scroll, never on the settle at the end of a flick
-    const scrolling = stepGate(
       scroll.current,
       state.velocity,
       SCROLL_REVERSAL_SPEED,
       REVERSAL_DWELL,
       dt,
     )
+    const lean = still ? 0 : route.lean(p)
+    const tx = direction * lean * Math.sin(VIEW_SWEEP)
+    const tz = direction * Math.cos(VIEW_SWEEP)
 
     const psi = s.heading.value
-    const cruise = nearestAngle(psi, direction > 0 ? HEADING_RIGHT : HEADING_LEFT)
+    // nose = (-sin psi, 0, -cos psi), so this is simply "point the nose down
+    // the travel vector" — the three-quarter, the reversal and the
+    // no-flat-profile rule all fall out of it rather than being cased apart
+    const travelling = nearestAngle(psi, Math.atan2(-tx, -tz))
+    // at the very top the aircraft always settles facing the viewer, whichever
+    // way the last scroll went
+    const front = nearestAngle(psi, HEADING_AT_CAMERA)
+    const atTop = 1 - smoothstep01(p / TOP_SETTLE)
+    let headingTarget = travelling + (front - travelling) * atTop
+
     // forward through the finale it turns to face the camera; backing out of it
     // the aircraft is receding, so it has to be pointing away instead
-    const finaleHeading = nearestAngle(
-      psi,
-      scrolling > 0 ? HEADING_AT_CAMERA : HEADING_AWAY,
-    )
-    const headingTarget = cruise + (finaleHeading - cruise) * turning
+    const finaleHeading = nearestAngle(psi, direction > 0 ? HEADING_AT_CAMERA : HEADING_AWAY)
+    headingTarget += (finaleHeading - headingTarget) * turning
     const heading = stepSpring(s.heading, headingTarget, OMEGA_HEADING, dt)
 
-    /* bank into the turn, and yaw is the turn itself ------------------------ */
-    // the aircraft banks because it is *turning*, not because it is sliding
-    // sideways — so the roll builds as the U-turn starts and levels as it ends
-    let rollTarget = clamp(s.heading.velocity * ROLL_PER_TURN, -ROLL_MAX, ROLL_MAX)
+    /* bank ------------------------------------------------------------------ */
+    // Two sources: the steady bank held through the curve, which is the path's
+    // lateral curvature and therefore peaks at the ends of each swing and
+    // vanishes at the crossings; and the transient from the heading rate, which
+    // is what rolls the aircraft over during a reversal. The curvature term
+    // flips with travel direction, because the same geometric turn is a left
+    // turn seen from the front and a right turn seen from behind.
+    let rollTarget = clamp(
+      route.curve(p) * direction * ROLL_PER_CURVE * (still ? 0 : 1) +
+        s.heading.velocity * ROLL_PER_TURN,
+      -ROLL_MAX,
+      ROLL_MAX,
+    )
     const manoeuvring = clamp(Math.abs(s.heading.velocity) * 0.5, 0, 1)
     rollTarget += -state.pointerX * ROLL_PER_POINTER * (1 - manoeuvring) * (1 - turning)
     rollTarget += noise(t, 3.1) * WANDER_ROLL * wander * (1 - turning)
@@ -312,6 +325,13 @@ export function Plane() {
     let pitchTarget = clamp(state.velocity * PITCH_PER_VELOCITY, -PITCH_MAX, PITCH_MAX)
     pitchTarget += clamp(
       (s.y.velocity / Math.max(halfH / 10, 1e-3)) * PITCH_PER_VERTICAL,
+      -PITCH_MAX,
+      PITCH_MAX,
+    )
+    // the route's own climb rate, so the vertical weave is flown rather than
+    // slid — and it reverses with travel, like the bank
+    pitchTarget += clamp(
+      route.climb(p) * direction * PITCH_PER_CLIMB * (still ? 0 : 1),
       -PITCH_MAX,
       PITCH_MAX,
     )

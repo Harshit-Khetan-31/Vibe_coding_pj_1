@@ -136,7 +136,29 @@ flies freely in a realistic 3D dusk sky and the page reads as an editorial layer
 - Fallback for reduced motion or no WebGL: a static dusk gradient and a still aircraft glyph.
 - The aircraft model is CC BY — the footer credit line is a `// TODO` until the footer exists.
 
-### Phase 2B — the crossing, the turn, the finale (current; extends 2A)
+### Phase 2C — one continuous flight, and the grade (current; supersedes 2B's routing)
+
+2B still parked the aircraft per section and crossed between them. That is gone.
+
+- **`src/flight/route.ts` is now closed form**: a sinusoid over progress, about one full swing per
+  section laterally and half that vertically, with exact `lean` (tangent), `curve` (curvature) and
+  `climb` derivatives. No keys, no dwell, no state — so heading and bank are clean at any scroll
+  speed and scrolling up is the same curve read backwards for free.
+- **Facing = `atan2` of the travel vector** (depth from scroll direction, lateral from the tangent):
+  front three-quarter going down, rear three-quarter going up, head-on at the swing ends, never a
+  flat side profile. `TOP_SETTLE` forces the front view at the top of the page.
+- **Bank** is path curvature plus heading rate, both flipping with travel direction. **Pitch** picks
+  up the route's climb rate. Position springs were re-tuned from "glide between zones" (ω 1.5–2.1)
+  to "low-pass a moving path" (ω 5–6).
+- **The grade and the type**: the radial scrims are gone (they read as brown smoke and dithered at
+  the edges), replaced by text-shadow tokens plus one masked, edgeless full-width band per section.
+  Reveal transforms stay `translate3d` so the type keeps grayscale antialiasing instead of fringing.
+  Bloom threshold raised to 0.96 and god rays weakened, so only the sun disc blooms.
+- **The cloud sea** is warmer and softer: golden tops, desaturated warm-mauve shade, larger feature
+  scale, per-octave rotation in the fbm (the lattices no longer line up into a visible grid) and an
+  earlier fade into haze, so the far field where any repeat would show is haze rather than sea.
+
+### Phase 2B — the crossing, the turn, the finale (superseded in part by 2C)
 
 Phase 2A parked the aircraft beside the text and slid it between two zones. 2B makes the *flight* the
 point, and switches the view so you can see it.

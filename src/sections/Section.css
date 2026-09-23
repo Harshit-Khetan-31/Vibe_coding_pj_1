@@ -11,31 +11,47 @@
 
 /* Since Phase 2A the aircraft holds the half of the viewport the text does not
    occupy, so the text column is deliberately only about half the width. Which
-   half is set by `TEXT_SIDE` in src/flight/profile.ts, and the same list tells
-   the aircraft which side to hold — see src/gl/zones.ts. */
+   half is set by `TEXT_SIDE` in src/flight/profile.ts, and the same list seeds
+   the flight path — see src/flight/route.ts. */
 .section__inner {
   position: relative;
   width: min(52%, 34rem);
 }
 
-/* The sky is golden hour now, which means the frame is bright where it used to
-   be nearly black. This is the one thing that buys the off-white type its
-   contrast back: a soft, feathered scrim under the text block only — no panel,
-   no edge, nothing you would notice unless you turned it off. */
-.section__inner::before {
+/* Readability over a golden-hour sky, without a shape.
+
+   This used to be a radial gradient behind the text block, which was a mistake:
+   a radial falloff over a bright sky reads as a smudge of brown smoke sitting
+   in the frame, and an 8-bit gradient that large dithers into visible colour
+   speckle at its edges. What replaced it is a band that spans the full width of
+   the section and fades to nothing at both ends of it — so there is no edge
+   anywhere, horizontally because it runs off both sides of the viewport and
+   vertically because the mask takes it to zero before the next section starts.
+   Most of the contrast is carried by the text's own shadow instead. */
+.section::before {
   content: '';
   position: absolute;
-  /* generous inset, and a falloff that reaches zero well inside it — the
-     scrim must not have an edge anywhere, or it reads as a panel */
-  inset: calc(var(--space-32) * -1) calc(var(--space-24) * -1);
+  inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: radial-gradient(
-    56% 46% at 50% 50%,
-    rgb(5 5 11 / 0.55) 0%,
-    rgb(5 5 11 / 0.34) 40%,
-    rgb(5 5 11 / 0.12) 68%,
-    rgb(5 5 11 / 0) 88%
+  background: linear-gradient(
+    to right,
+    rgb(8 7 14 / 0.4) 0%,
+    rgb(8 7 14 / 0.22) 30%,
+    rgb(8 7 14 / 0.06) 58%,
+    rgb(8 7 14 / 0) 78%
+  );
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 26%, #000 74%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 26%, #000 74%, transparent);
+}
+
+.section[data-side='right']::before {
+  background: linear-gradient(
+    to left,
+    rgb(8 7 14 / 0.4) 0%,
+    rgb(8 7 14 / 0.22) 30%,
+    rgb(8 7 14 / 0.06) 58%,
+    rgb(8 7 14 / 0) 78%
   );
 }
 
@@ -63,6 +79,12 @@
     width: 100%;
   }
 
+  /* full width text needs the band under all of it, not down one side */
+  .section::before,
+  .section[data-side='right']::before {
+    background: linear-gradient(to bottom, rgb(8 7 14 / 0) 0%, rgb(8 7 14 / 0.34) 100%);
+  }
+
   .section[data-side='right'] {
     align-items: flex-start;
   }
@@ -79,23 +101,31 @@
   font-size: var(--text-sm);
   color: var(--dim);
   margin-bottom: var(--space-4);
+  text-shadow: var(--text-scrim);
 }
 
 .section__title {
   font-size: var(--display-sm);
   max-width: 20ch;
+  text-shadow: var(--text-scrim-strong);
 }
 
 .section__body {
   margin-top: var(--space-6);
   color: var(--dim);
   font-size: var(--text-lg);
+  text-shadow: var(--text-scrim);
 }
 
 /* The reveal. Each line sits in its own mask and slides out of it as the
    aircraft passes the section — one orchestrated moment, not a fade-up on
    everything. The mask is a real clip (overflow), so the line arrives rather
-   than appearing, and `will-change` is deliberately absent: these run once.
+   than appearing.
+
+   The transform stays a `translate3d` in both states on purpose. It keeps the
+   text on its own compositing layer, which turns off LCD subpixel antialiasing
+   — that is what was fringing the headline edges red and green over the bright
+   sky, and grayscale antialiasing has no colour to fringe with.
 
    A nav click reveals its target instantly (src/flight/store.ts), so the only
    thing the transition has to survive is a fast scroll, where it simply
@@ -111,10 +141,9 @@
 
 .reveal > * {
   display: block;
-  /* clear of the mask by a margin: the mask is taller than the line (see the
-     descender padding above), so 105% would leave a sliver of the tallest
-     glyphs showing at rest */
-  transform: translateY(130%);
+  /* clear of the mask by a margin: the mask is taller than the line, so 105%
+     would leave a sliver of the tallest glyphs showing at rest */
+  transform: translate3d(0, 130%, 0);
   opacity: 0;
   transition:
     transform 0.9s var(--ease-ui) var(--reveal-delay, 0ms),
@@ -122,7 +151,7 @@
 }
 
 .section[data-revealed='true'] .reveal > * {
-  transform: none;
+  transform: translate3d(0, 0, 0);
   opacity: 1;
 }
 
@@ -147,7 +176,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .reveal > * {
-    transform: none;
+    transform: translate3d(0, 0, 0);
     opacity: 1;
     transition: none;
   }
