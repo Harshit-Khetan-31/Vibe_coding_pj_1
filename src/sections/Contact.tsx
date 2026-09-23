@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { contact } from '../content/contact'
 import { credits } from '../content/credits'
 import { TEXT_SIDE } from '../flight/profile'
-import { useSectionReveal } from '../hooks/useSectionReveal'
+import { useContactReveal } from '../hooks/useContactReveal'
 import './Section.css'
 import './Contact.css'
 
@@ -25,8 +25,8 @@ function localTime(timeZone: string): string {
  * viewport exactly when the scroll runway runs out. See `Contact.css` for
  * the extra section height that runway needs.
  */
-export function Contact({ index, number }: { index: number; number: string }) {
-  const revealed = useSectionReveal(index)
+export function Contact({ number }: { index: number; number: string }) {
+  const revealed = useContactReveal()
   const [copied, setCopied] = useState(false)
   const [time, setTime] = useState(() => localTime(contact.timeZone))
   const copyTimeout = useRef<ReturnType<typeof setTimeout>>()
@@ -55,17 +55,15 @@ export function Contact({ index, number }: { index: number; number: string }) {
       id="contact"
       className="section section--contact"
       data-side={TEXT_SIDE.contact}
-      data-revealed={revealed ? 'true' : 'false'}
+      data-contact-revealed={revealed ? 'true' : 'false'}
       aria-label="Contact"
     >
       <div className="section__inner contact__inner">
-        <div className="reveal" style={{ '--reveal-delay': '0ms' } as React.CSSProperties}>
+        <div className="contact-rise" style={{ '--reveal-delay': '0ms' } as React.CSSProperties}>
           <div className="section__eyebrow">{number}</div>
-        </div>
-        <div className="reveal" style={{ '--reveal-delay': '70ms' } as React.CSSProperties}>
           <h2 className="section__title contact__heading">{contact.heading}</h2>
         </div>
-        <div className="reveal" style={{ '--reveal-delay': '180ms' } as React.CSSProperties}>
+        <div className="contact-rise" style={{ '--reveal-delay': '80ms' } as React.CSSProperties}>
           <button type="button" className="contact__email" onClick={copyEmail}>
             {contact.email}
             <span className="contact__copied mono" aria-live="polite">
@@ -73,7 +71,7 @@ export function Contact({ index, number }: { index: number; number: string }) {
             </span>
           </button>
         </div>
-        <div className="reveal" style={{ '--reveal-delay': '260ms' } as React.CSSProperties}>
+        <div className="contact-rise" style={{ '--reveal-delay': '160ms' } as React.CSSProperties}>
           <ul className="contact__socials">
             {contact.socials.map((s) => (
               <li key={s.label}>
@@ -83,15 +81,16 @@ export function Contact({ index, number }: { index: number; number: string }) {
               </li>
             ))}
           </ul>
-        </div>
-        <div className="reveal" style={{ '--reveal-delay': '320ms' } as React.CSSProperties}>
           <div className="contact__clock mono">
             {time} · {contact.timeZone.replace('_', ' ')}
           </div>
         </div>
       </div>
 
-      <footer className="contact__footer mono">
+      <footer
+        className="contact-rise contact__footer mono"
+        style={{ '--reveal-delay': '240ms' } as React.CSSProperties}
+      >
         <span>© Harshit {new Date().getFullYear()}</span>
         {plane && (
           <span>

@@ -170,6 +170,45 @@ export function revealSection(section: number) {
   }
 }
 
+/* ---- CONTACT: propeller screen coverage ----------------------------------- */
+
+/**
+ * How much of the viewport the propeller disc fills during the finale, as
+ * written back by the flying layer (`Plane.tsx`) each frame — the same
+ * "flying layer reports back" pattern as `setAttitude`. Unlike the section
+ * reveals above this is not sticky: it tracks the disc's real on-screen size,
+ * so scrolling back up shrinks it again and CONTACT's reveal can play in
+ * reverse instead of only ever turning on.
+ *
+ * The two thresholds are a small hysteresis band around "the propeller covers
+ * ~60% of the screen", so a frame of scroll jitter right at the close-up
+ * moment cannot flicker the reveal on and off.
+ */
+
+const CONTACT_REVEAL_ON = 0.6
+const CONTACT_REVEAL_OFF = 0.52
+
+let contactRevealed = false
+const contactListeners = new Set<Listener>()
+
+export function subscribeContactReveal(fn: Listener): () => void {
+  contactListeners.add(fn)
+  return () => contactListeners.delete(fn)
+}
+
+export function isContactRevealed(): boolean {
+  return contactRevealed
+}
+
+/** `fraction` is the propeller disc's diameter as a fraction of viewport height. */
+export function setPropellerCoverage(fraction: number) {
+  const next = contactRevealed ? fraction > CONTACT_REVEAL_OFF : fraction >= CONTACT_REVEAL_ON
+  if (next !== contactRevealed) {
+    contactRevealed = next
+    contactListeners.forEach((fn) => fn())
+  }
+}
+
 export function isReducedMotion(): boolean {
   return reducedMotion
 }

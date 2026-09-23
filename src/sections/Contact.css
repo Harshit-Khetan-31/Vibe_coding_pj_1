@@ -1,19 +1,53 @@
 /* CONTACT-only overrides. `.section--contact` stacks with the shared rules in
-   `Section.css` (reveal, side, the readability band) rather than replacing
-   them — nothing there was touched.
+   `Section.css` (side, the readability band) rather than replacing them, but
+   its reveal is its own — see `.contact-rise` below — because it is cued by
+   the propeller's on-screen size during the finale close-up rather than by
+   scroll position, and has to play in reverse if the visitor scrolls back up.
 
    The extra height below is the scroll runway: the finale clears the screen
-   ~30% into this section (see `FINALE_TO` in `src/flight/route.ts`, which
-   shares its anchor with the reveal trigger), so the remaining ~70% of a
-   taller box is real scroll distance to read and click through CONTACT
-   before the page — and `progress` — hit their end. Content sits at the
-   bottom of that box via `flex-end`, which is also exactly what is left on
-   screen once scrolling reaches the true bottom of the document. */
+   ~30% into this section (see `FINALE_TO` in `src/flight/route.ts`), so the
+   remaining ~70% of a taller box is real scroll distance to read and click
+   through CONTACT before the page — and `progress` — hit their end. Content
+   sits at the bottom of that box via `flex-end`, which is also exactly what
+   is left on screen once scrolling reaches the true bottom of the document. */
 .section.section--contact {
   min-height: 160svh;
   justify-content: flex-end;
   gap: var(--space-16);
   padding-bottom: var(--space-16);
+}
+
+/* The reveal: rises into place over the spinning propeller as it fills the
+   screen, and — unlike `.reveal` in Section.css — reverses smoothly if the
+   visitor scrolls back up before the plane clears the frame. No mask/clip
+   here (nothing needs to be occluded for a rise-and-fade), so it is plain
+   transform + opacity rather than `.reveal`'s overflow-hidden line mask. */
+.contact-rise {
+  transform: translate3d(0, 60px, 0);
+  opacity: 0;
+  transition:
+    transform 0.9s var(--ease-ui) var(--reveal-delay, 0ms),
+    opacity 0.9s var(--ease-ui) var(--reveal-delay, 0ms);
+}
+
+.section--contact[data-contact-revealed='true'] .contact-rise {
+  transform: translate3d(0, 0, 0);
+  opacity: 1;
+}
+
+.section__inner > .contact-rise:nth-child(2) {
+  margin-top: var(--space-4);
+}
+
+.section__inner > .contact-rise:nth-child(3) {
+  margin-top: var(--space-6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contact-rise {
+    transform: none;
+    transition: opacity 0.5s ease;
+  }
 }
 
 .contact__heading {

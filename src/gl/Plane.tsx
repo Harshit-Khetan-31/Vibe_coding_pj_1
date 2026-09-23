@@ -2,13 +2,14 @@ import { useMemo, useRef } from 'react'
 import { createPortal, useFrame, useThree } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { Box3, Euler, Group, MathUtils, Mesh, Quaternion, Vector3, type Object3D } from 'three'
-import { getTrack, isReducedMotion, setAttitude, state } from '../flight/store'
+import { getTrack, isReducedMotion, setAttitude, setPropellerCoverage, state } from '../flight/store'
 import { Livery } from './Livery'
 import { Propeller } from './Propeller'
 import { clamp, noise, snapSpring, spring, stepSpring, type Gate, gate, stepGate } from './spring'
 import {
   BOB_AMPLITUDE,
   BOB_RATE,
+  CAMERA_Z,
   FINALE_HIDE_Z,
   FINALE_PASS_END,
   FINALE_PASS_START,
@@ -158,6 +159,9 @@ const smoothstep01 = (t: number) => {
 
 /** 0 outside [a,b], eased 0→1 across it. */
 const ramp = (v: number, a: number, b: number) => smoothstep01((v - a) / Math.max(b - a, 1e-4))
+
+/** Mirrors the `radius` handed to `<Propeller>` below, in model-span units. */
+const PROP_RADIUS_FRACTION = 0.19
 
 export function Plane() {
   const gltf = useGLTF(MODEL_URL)
@@ -346,6 +350,15 @@ export function Plane() {
     finale.current.boost = turning
     finale.current.grow = 1 + FINALE_PROP_GROW * approach * approach
 
+    /* propeller screen coverage: the disc's real on-screen size, which is what
+       actually cues CONTACT's reveal (see store.ts) rather than a fixed scroll
+       position — so the trigger tracks the close-up moment even if the
+       finale's timing or depth is retuned later. */
+    const propRadius = model.span * PROP_RADIUS_FRACTION * scale.current * finale.current.grow
+    const distance = Math.max(CAMERA_Z - z, 0.05)
+    const tanHalfFov = halfH / PLANE_DEPTH
+    setPropellerCoverage(propRadius / (tanHalfFov * distance))
+
     // the instruments read the aircraft, not a second simulation of it
     // driftX is what the aircraft is *seen* to do, so the clouds get the real
     // lateral velocity rather than the route's
@@ -359,7 +372,11 @@ export function Plane() {
         {/* the paint is projected onto the skin itself, so it lives in the
             fuselage mesh's own space rather than beside it in the tree */}
         {model.fuselage && createPortal(<Livery fuselage={model.fuselage} />, model.fuselage)}
-        <Propeller radius={model.span * 0.19} z={-model.noseOffset * 0.99} finale={finale} />
+        <Propeller
+          radius={model.span * PROP_RADIUS_FRACTION}
+          z={-model.noseOffset * 0.99}
+          finale={finale}
+        />
       </group>
     </group>
   )
