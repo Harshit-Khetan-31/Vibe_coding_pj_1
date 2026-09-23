@@ -1,0 +1,108 @@
+/* CONTACT-only overrides. `.section--contact` stacks with the shared rules in
+   `Section.css` (reveal, side, the readability band) rather than replacing
+   them — nothing there was touched.
+
+   The extra height below is the scroll runway: the finale clears the screen
+   ~30% into this section (see `FINALE_TO` in `src/flight/route.ts`, which
+   shares its anchor with the reveal trigger), so the remaining ~70% of a
+   taller box is real scroll distance to read and click through CONTACT
+   before the page — and `progress` — hit their end. Content sits at the
+   bottom of that box via `flex-end`, which is also exactly what is left on
+   screen once scrolling reaches the true bottom of the document. */
+.section.section--contact {
+  min-height: 160svh;
+  justify-content: flex-end;
+  gap: var(--space-16);
+  padding-bottom: var(--space-16);
+}
+
+.contact__heading {
+  font-size: var(--display-md);
+}
+
+.contact__email {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 3vw, 2rem);
+  text-transform: lowercase;
+  letter-spacing: var(--tracking-display);
+  text-shadow: var(--text-scrim);
+  border-bottom: 1px solid var(--line-strong);
+  padding-bottom: var(--space-2);
+  transition: border-color var(--dur-fast) var(--ease-ui);
+}
+
+.contact__email:hover,
+.contact__email:focus-visible {
+  border-color: var(--fg);
+}
+
+.contact__copied {
+  color: var(--accent);
+  text-shadow: none;
+  min-width: 4.5em;
+}
+
+.contact__socials {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.contact__socials a {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-mono);
+  text-transform: uppercase;
+  color: var(--dim);
+  text-shadow: var(--text-scrim);
+  transition: color var(--dur-fast) var(--ease-ui);
+}
+
+.contact__socials a:hover,
+.contact__socials a:focus-visible {
+  color: var(--fg);
+}
+
+.contact__clock {
+  margin-top: var(--space-4);
+  text-shadow: var(--text-scrim);
+}
+
+.contact__footer {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-8);
+  justify-content: space-between;
+  width: 100%;
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--line);
+}
+
+.contact__footer a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.contact__footer span {
+  text-shadow: var(--text-scrim);
+}
+
+@media (max-width: 768px) {
+  .section.section--contact {
+    min-height: 135svh;
+  }
+
+  .contact__footer {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+}

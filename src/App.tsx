@@ -3,6 +3,7 @@ import { Nav } from './components/Nav'
 import { World } from './gl/World'
 import { Hud } from './components/hud/Hud'
 import { Placeholder } from './sections/Placeholder'
+import { Contact } from './sections/Contact'
 import { profile } from './content/profile'
 
 export default function App() {
@@ -42,13 +43,7 @@ export default function App() {
           title="About"
           body="Curiosity, the pilot dream, sports, friends — Phase 4."
         />
-        <Placeholder
-          id="contact"
-          index={4}
-          number={profile.sections[4].number}
-          title="Contact"
-          body="Placeholder — Phase 4."
-        />
+        <Contact index={4} number={profile.sections[4].number} />
       </main>
     </>
   )
