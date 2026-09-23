@@ -90,7 +90,7 @@ const DISC_FRAG = /* glsl */ `
     if (r > 1.0) discard;
 
     float lobes = 0.5 + 0.5 * sin(atan(p.y, p.x) * 3.0 + uTime * 26.0);
-    float rim = smoothstep(1.0, 0.82, r);
+    float rim = smoothstep(1.0, 0.62, r);
     float hub = smoothstep(0.05, 0.22, r);
     float alpha = uOpacity * rim * hub * (0.42 + 0.58 * lobes) * (0.45 + 0.55 * r);
 
@@ -206,7 +206,7 @@ export function Propeller({ radius, z, finale }: { radius: number; z: number; fi
         </group>
         {/* the disc does not turn — its smear does, in the shader */}
         <mesh position={[0, 0, -radius * 0.04]}>
-          <circleGeometry args={[radius, 56]} />
+          <circleGeometry args={[radius, 64]} />
           <shaderMaterial ref={disc} args={discArgs} />
         </mesh>
       </group>
