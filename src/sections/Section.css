@@ -1,0 +1,32 @@
+.section {
+  position: relative;
+  min-height: 100svh;
+  padding: var(--space-24) var(--space-8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .section {
+    padding: var(--space-16) var(--space-4);
+  }
+}
+
+.section__eyebrow {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  color: var(--dim);
+  margin-bottom: var(--space-4);
+}
+
+.section__title {
+  font-size: var(--text-2xl);
+  max-width: 20ch;
+}
+
+.section__body {
+  margin-top: var(--space-6);
+  color: var(--dim);
+  font-size: var(--text-lg);
+}

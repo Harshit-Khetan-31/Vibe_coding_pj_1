@@ -1,0 +1,105 @@
+.nav {
+  position: fixed;
+  top: 0;
+  left: var(--space-6);
+  height: 100svh;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+}
+
+.nav__rail {
+  position: relative;
+  height: 68%;
+  width: 1px;
+  background: var(--line);
+}
+
+.nav__item {
+  position: absolute;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  transform: translateY(-50%);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nav__tick {
+  width: 10px;
+  height: 1px;
+  background: var(--dim);
+  transition:
+    width 0.35s var(--ease-out),
+    background 0.35s var(--ease-out);
+}
+
+.nav__label {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--dim);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity 0.35s var(--ease-out),
+    transform 0.35s var(--ease-out),
+    color 0.35s var(--ease-out);
+}
+
+.nav__item:hover .nav__label,
+.nav__item--active .nav__label {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.nav__item:hover .nav__tick,
+.nav__item--active .nav__tick {
+  width: 28px;
+  background: var(--accent);
+}
+
+.nav__item--active .nav__label {
+  color: var(--fg);
+}
+
+@media (max-width: 768px) {
+  .nav {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: auto;
+    padding: var(--space-4);
+    background: linear-gradient(to top, var(--bg) 45%, transparent);
+  }
+
+  .nav__rail {
+    height: 1px;
+    width: 100%;
+  }
+
+  .nav__item {
+    top: 0;
+    left: var(--nav-x, 0%);
+    transform: translate(-50%, -50%);
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .nav__tick {
+    width: 1px;
+    height: 10px;
+  }
+
+  .nav__item:hover .nav__tick,
+  .nav__item--active .nav__tick {
+    width: 1px;
+    height: 20px;
+  }
+
+  .nav__label {
+    font-size: 0.6rem;
+  }
+}
