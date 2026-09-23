@@ -7,7 +7,8 @@ import { CLOUD_LAYERS, CLOUD_TEXTURE, type CloudLayer } from './config'
 import { clamp } from './spring'
 
 /**
- * Three parallax cloud layers.
+ * Four parallax cloud layers: three of billowing cumulus, plus a thin stratus
+ * sheet parked low and far back to give the horizon a floor.
  *
  * The camera never moves: the world streams past it. Each cloud drifts toward
  * the viewer at its layer's cruise speed plus whatever the scroll is adding, so
@@ -31,7 +32,7 @@ function seedLayer(layer: CloudLayer, index: number): Seeded[] {
     const n = index * 97 + i * 13
     out.push({
       x: (hash(n) - 0.5) * 2 * layer.spreadX,
-      y: (hash(n + 1) - 0.5) * 2 * layer.spreadY,
+      y: layer.offsetY + (hash(n + 1) - 0.5) * 2 * layer.spreadY,
       // evenly spaced down the layer, jittered — no visible conga line
       z: -(layer.near + (i / layer.count) * depth + hash(n + 2) * (depth / layer.count)),
       seed: n,
@@ -85,7 +86,11 @@ function Layer({ layer, index }: { layer: CloudLayer; index: number }) {
           <Cloud
             seed={seed.seed}
             segments={layer.segments}
-            bounds={[layer.volume * 1.6, layer.volume * 0.45, layer.volume]}
+            bounds={[
+              layer.volume * 1.6,
+              layer.volume * 0.45 * layer.flatten,
+              layer.volume * (layer.flatten < 0.5 ? 0.5 : 1),
+            ]}
             volume={layer.volume}
             growth={layer.growth}
             opacity={layer.opacity}

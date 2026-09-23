@@ -30,11 +30,48 @@ export const CAMERA_Z = 0
 /** Depth the aircraft holds, world units in front of the camera. */
 export const PLANE_DEPTH = 22
 
-/** Dusk: sun just above the horizon, slightly off to one side. */
-export const SUN_INCLINATION = 0.495
-export const SUN_AZIMUTH = 0.22
-export const FOG_NEAR = 30
-export const FOG_FAR = 190
+/* ---- golden hour --------------------------------------------------------- */
+
+/**
+ * The sun sits just above the horizon and off to the right of the view axis, so
+ * it is on screen (GodRays needs that) without sitting behind the aircraft for
+ * the whole scroll. Angles, not a raw vector, so the look is one number away.
+ */
+export const SUN_ELEVATION_DEG = 3.4
+export const SUN_AZIMUTH_DEG = 20
+/** Where the sun billboard is parked. Inside `far`, outside everything else. */
+export const SUN_DISTANCE = 300
+export const SUN_RADIUS = 8.5
+
+/** Unit vector toward the sun, camera-space = world space (the camera is fixed). */
+export const SUN_DIRECTION: [number, number, number] = (() => {
+  const el = (SUN_ELEVATION_DEG * Math.PI) / 180
+  const az = (SUN_AZIMUTH_DEG * Math.PI) / 180
+  return [Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el)]
+})()
+
+/**
+ * The gradient, bottom to top. Everything below the horizon is a sea of cloud
+ * tops rather than ground, so there is no horizon line to hide — the sea just
+ * washes out into `HAZE` as it approaches eye level.
+ */
+export const SKY_ZENITH = '#131a44' // deep indigo
+export const SKY_HIGH = '#3e4a86' // dusty blue
+export const SKY_MID = '#f2a781' // soft peach
+export const SKY_HORIZON = '#ffc06b' // warm amber
+export const SKY_HAZE = '#f6b27e' // what the cloud sea dissolves into
+export const SUN_GLOW = '#ffd9a2'
+
+/** The cloud sea below: lit tops, and the lavender shade between them. */
+export const SEA_LIT = '#ffe4bd'
+export const SEA_SHADE = '#7d76a6'
+/** Noise scale and how fast the sea slides past at cruise. */
+export const SEA_SCALE = 2.4
+export const SEA_DRIFT = 0.12
+
+export const FOG_COLOR = '#eeb184'
+export const FOG_NEAR = 46
+export const FOG_FAR = 270
 
 /* ---- cloud layers -------------------------------------------------------- */
 
@@ -51,17 +88,30 @@ export type CloudLayer = {
   /** half-extent of the spawn box, in world units at that depth */
   spreadX: number
   spreadY: number
+  /** centre of the spawn box in Y — negative parks the layer below eye level */
+  offsetY: number
   volume: number
+  /** flattens the puff box vertically: 1 = billowing, 0.12 = a stratus sheet */
+  flatten: number
   opacity: number
   color: string
   growth: number
 }
 
 /**
- * Three layers, parallaxed by depth: the near layer sweeps past the aircraft
+ * Four layers, parallaxed by depth: the near layer sweeps past the aircraft
  * fast, the far layer barely drifts. Speeds are set per layer rather than
  * derived from depth so the near layer can be pushed harder than perspective
  * alone would give — parallax you can feel at a glance.
+ *
+ * Since the golden-hour pass there are fewer and softer clouds: they read as
+ * backlit shapes rather than as a texture, and their colour is deliberately a
+ * near-white lavender so the *lighting* does the work — the warm key paints the
+ * sun-facing rims gold, the lavender-slate hemisphere fills the rest. Nothing
+ * here is brown, and nothing here is black.
+ *
+ * The last layer is different in kind: a thin, wide stratus sheet parked below
+ * eye level, near the horizon, to give the distance a floor.
  */
 export const CLOUD_LAYERS: CloudLayer[] = [
   {
@@ -69,42 +119,65 @@ export const CLOUD_LAYERS: CloudLayer[] = [
     far: 34,
     baseSpeed: 9,
     scrollSpeed: 110,
-    count: 5,
+    count: 4,
     segments: 12,
     spreadX: 26,
     spreadY: 14,
+    offsetY: 0,
     volume: 7,
-    opacity: 0.5,
-    color: '#f4c9a8',
-    growth: 5,
+    flatten: 1,
+    opacity: 0.3,
+    color: '#f4eef8',
+    growth: 6,
   },
   {
     near: 40,
     far: 95,
     baseSpeed: 5,
     scrollSpeed: 60,
-    count: 7,
+    count: 5,
     segments: 9,
     spreadX: 54,
     spreadY: 26,
+    offsetY: -2,
     volume: 12,
-    opacity: 0.42,
-    color: '#e6b79b',
-    growth: 6,
+    flatten: 1,
+    opacity: 0.26,
+    color: '#e7e0f2',
+    growth: 7,
   },
   {
     near: 105,
     far: 185,
     baseSpeed: 2.4,
     scrollSpeed: 26,
-    count: 8,
+    count: 6,
     segments: 6,
     spreadX: 110,
     spreadY: 46,
+    offsetY: -6,
     volume: 22,
-    opacity: 0.3,
-    color: '#cf9e93',
-    growth: 7,
+    flatten: 1,
+    opacity: 0.18,
+    color: '#d8d0e8',
+    growth: 8,
+  },
+  {
+    // stratus: thin bands low in the frame, almost stationary
+    near: 120,
+    far: 210,
+    baseSpeed: 1.6,
+    scrollSpeed: 16,
+    count: 5,
+    segments: 4,
+    spreadX: 130,
+    spreadY: 9,
+    offsetY: -17,
+    volume: 26,
+    flatten: 0.12,
+    opacity: 0.22,
+    color: '#f3ddd6',
+    growth: 9,
   },
 ]
 
@@ -154,3 +227,37 @@ export const PROP_MAX_RPS = 34
  */
 export const ZONE_X_DESKTOP = 0.52
 export const ZONE_X_MOBILE = 0.26
+
+/* ---- livery -------------------------------------------------------------- */
+
+/**
+ * The paint. Both strings are projected onto the airframe mesh as decals, one
+ * per side, so they wrap the fuselage and the fin instead of floating beside
+ * them. Dark navy on the white body clears 4.5:1 comfortably.
+ */
+export const LIVERY_TITLE = 'HARSHIT'
+export const LIVERY_REGISTRATION = 'VT-HRS'
+export const LIVERY_INK = '#14213f'
+
+/**
+ * Where the strings sit, as fractions of the airframe's own bounding box —
+ * never as model units, so a different aircraft still gets a sensible layout.
+ * `Livery.tsx` measures the fuselage and turns these into decal boxes.
+ */
+export const LIVERY_TITLE_STATION = 0.45 // 0 = wing trailing edge, 1 = fin root
+export const LIVERY_TITLE_HEIGHT = 0.3 // fraction of the fuselage's own depth
+export const LIVERY_REG_STATION = 0.9 // fraction of the airframe length, from the nose
+export const LIVERY_REG_HEIGHT = 0.34
+
+/* ---- post-processing ----------------------------------------------------- */
+
+/** Bloom is the only effect a phone gets; the rest are desktop-only. */
+export const BLOOM_INTENSITY = 0.3
+export const BLOOM_THRESHOLD = 0.88
+export const BLOOM_SMOOTHING = 0.32
+export const GODRAYS_DENSITY = 0.86
+export const GODRAYS_DECAY = 0.93
+export const GODRAYS_WEIGHT = 0.2
+export const GODRAYS_EXPOSURE = 0.32
+export const VIGNETTE_DARKNESS = 0.52
+export const VIGNETTE_OFFSET = 0.32

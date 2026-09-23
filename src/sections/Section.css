@@ -14,7 +14,29 @@
    half is set by `TEXT_SIDE` in src/flight/profile.ts, and the same list tells
    the aircraft which side to hold — see src/gl/zones.ts. */
 .section__inner {
+  position: relative;
   width: min(52%, 34rem);
+}
+
+/* The sky is golden hour now, which means the frame is bright where it used to
+   be nearly black. This is the one thing that buys the off-white type its
+   contrast back: a soft, feathered scrim under the text block only — no panel,
+   no edge, nothing you would notice unless you turned it off. */
+.section__inner::before {
+  content: '';
+  position: absolute;
+  /* generous inset, and a falloff that reaches zero well inside it — the
+     scrim must not have an edge anywhere, or it reads as a panel */
+  inset: calc(var(--space-32) * -1) calc(var(--space-24) * -1);
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    56% 46% at 50% 50%,
+    rgb(5 5 11 / 0.55) 0%,
+    rgb(5 5 11 / 0.34) 40%,
+    rgb(5 5 11 / 0.12) 68%,
+    rgb(5 5 11 / 0) 88%
+  );
 }
 
 .section[data-side='right'] {

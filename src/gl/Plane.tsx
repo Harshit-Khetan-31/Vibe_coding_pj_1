@@ -1,8 +1,9 @@
 import { useMemo, useRef } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
+import { createPortal, useFrame, useThree } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { Box3, Group, MathUtils, Mesh, Quaternion, Vector3, type Object3D } from 'three'
 import { setAttitude, state } from '../flight/store'
+import { Livery } from './Livery'
 import { zoneFor } from './zones'
 import { clamp, noise, snapSpring, spring, stepSpring } from './spring'
 import {
@@ -70,6 +71,13 @@ type Normalized = {
   span: number
   /** distance from the centre to the nose, model units */
   noseOffset: number
+  /**
+   * The airframe skin, which is where the paint goes. The model ships 41
+   * unnamed `Object_N` meshes — forty of them are the cockpit — so it is picked
+   * by weight rather than by name: the exterior shell is an order of magnitude
+   * denser than any instrument on the panel.
+   */
+  fuselage: Mesh | null
 }
 
 /**
@@ -87,14 +95,21 @@ function normalize(source: Object3D): Normalized {
   const size = box.getSize(new Vector3())
   object.position.set(-center.x, -center.y, -center.z)
 
+  let fuselage: Mesh | null = null
+  let densest = 0
   object.traverse((child) => {
-    if ((child as Mesh).isMesh) {
-      child.castShadow = false
-      child.receiveShadow = false
+    const mesh = child as Mesh
+    if (!mesh.isMesh) return
+    mesh.castShadow = false
+    mesh.receiveShadow = false
+    const count = mesh.geometry?.getAttribute('position')?.count ?? 0
+    if (count > densest) {
+      densest = count
+      fuselage = mesh
     }
   })
 
-  return { object, span: Math.max(size.x, 1e-3), noseOffset: size.z / 2 }
+  return { object, span: Math.max(size.x, 1e-3), noseOffset: size.z / 2, fuselage }
 }
 
 function Propeller({ radius, z }: { radius: number; z: number }) {
@@ -218,6 +233,9 @@ export function Plane() {
     <group ref={rig}>
       <group ref={scaler}>
         <primitive object={model.object} />
+        {/* the paint is projected onto the skin itself, so it lives in the
+            fuselage mesh's own space rather than beside it in the tree */}
+        {model.fuselage && createPortal(<Livery fuselage={model.fuselage} />, model.fuselage)}
         <Propeller radius={model.span * 0.19} z={-model.noseOffset * 0.99} />
       </group>
     </group>
