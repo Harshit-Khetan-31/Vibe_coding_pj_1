@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { Cloud, Clouds } from '@react-three/drei'
 import { Group, MeshLambertMaterial } from 'three'
 import { state } from '../flight/store'
-import { CLOUD_LAYERS, CLOUD_TEXTURE, type CloudLayer } from './config'
+import { CLOUD_LATERAL, CLOUD_LAYERS, CLOUD_TEXTURE, type CloudLayer } from './config'
 import { clamp } from './spring'
 
 /**
@@ -15,6 +15,11 @@ import { clamp } from './spring'
  * scrolling faster genuinely *is* flying faster, and recycles to the back of
  * its layer once it has passed behind the camera. Depth alone would give some
  * parallax; the per-layer speeds exaggerate it until you can feel it.
+ *
+ * Since Phase 2B the aircraft is seen from the side, so the field also slides
+ * *sideways*, against the aircraft's lateral travel. Without it a crossing
+ * reads as the aeroplane sliding across a still backdrop rather than as the
+ * world going past — the same reason the clouds stream at all.
  */
 
 /** Deterministic per-cloud placement, so a remount looks identical. */
@@ -49,12 +54,17 @@ function Layer({ layer, index }: { layer: CloudLayer; index: number }) {
     const dt = clamp(delta, 1 / 240, 1 / 20)
     // scroll down (positive velocity) = flying forward = clouds come at you
     const speed = layer.baseSpeed + state.velocity * layer.scrollSpeed
+    const lateral = -state.driftX * layer.scrollSpeed * CLOUD_LATERAL
     const depth = layer.far - layer.near
 
     for (let i = 0; i < refs.current.length; i++) {
       const group = refs.current[i]
       if (!group) continue
       group.position.z += speed * dt
+      group.position.x += lateral * dt
+      // wrap laterally too, or a long crossing empties one side of the layer
+      if (group.position.x > layer.spreadX) group.position.x -= layer.spreadX * 2
+      else if (group.position.x < -layer.spreadX) group.position.x += layer.spreadX * 2
 
       // recycle: wrap in whichever direction it left, so reversing the scroll
       // refills the layer from the front instead of emptying it

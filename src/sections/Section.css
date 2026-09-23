@@ -91,3 +91,64 @@
   color: var(--dim);
   font-size: var(--text-lg);
 }
+
+/* The reveal. Each line sits in its own mask and slides out of it as the
+   aircraft passes the section — one orchestrated moment, not a fade-up on
+   everything. The mask is a real clip (overflow), so the line arrives rather
+   than appearing, and `will-change` is deliberately absent: these run once.
+
+   A nav click reveals its target instantly (src/flight/store.ts), so the only
+   thing the transition has to survive is a fast scroll, where it simply
+   finishes early. */
+.reveal {
+  display: block;
+  overflow: hidden;
+  /* a descender clipped by the mask reads as a rendering bug, so the mask is
+     slightly taller than the line and pulled back by the same amount */
+  padding-bottom: 0.14em;
+  margin-bottom: -0.14em;
+}
+
+.reveal > * {
+  display: block;
+  /* clear of the mask by a margin: the mask is taller than the line (see the
+     descender padding above), so 105% would leave a sliver of the tallest
+     glyphs showing at rest */
+  transform: translateY(130%);
+  opacity: 0;
+  transition:
+    transform 0.9s var(--ease-ui) var(--reveal-delay, 0ms),
+    opacity 0.6s ease var(--reveal-delay, 0ms);
+}
+
+.section[data-revealed='true'] .reveal > * {
+  transform: none;
+  opacity: 1;
+}
+
+/* Spacing belongs to the mask, not to the line inside it — a margin inside an
+   overflow:hidden box is part of what the box shows, and the line would never
+   be able to hide behind its own gap. */
+.reveal > .section__eyebrow {
+  margin-bottom: 0;
+}
+
+.reveal > .section__body {
+  margin-top: 0;
+}
+
+.section__inner > .reveal:nth-child(2) {
+  margin-top: var(--space-4);
+}
+
+.section__inner > .reveal:nth-child(3) {
+  margin-top: var(--space-6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal > * {
+    transform: none;
+    opacity: 1;
+    transition: none;
+  }
+}

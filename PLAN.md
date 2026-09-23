@@ -136,6 +136,35 @@ flies freely in a realistic 3D dusk sky and the page reads as an editorial layer
 - Fallback for reduced motion or no WebGL: a static dusk gradient and a still aircraft glyph.
 - The aircraft model is CC BY — the footer credit line is a `// TODO` until the footer exists.
 
+### Phase 2B — the crossing, the turn, the finale (current; extends 2A)
+
+Phase 2A parked the aircraft beside the text and slid it between two zones. 2B makes the *flight* the
+point, and switches the view so you can see it.
+
+- **Side / three-quarter view**, achieved by turning the aircraft, not the camera — the golden-hour
+  framing, sun position and god rays are tuned to a camera at the origin and moving it re-grades the
+  whole picture. Heading lives on one arc centred on nose-at-camera, so a spring between the two
+  cruise headings sweeps through the front: U-turn, three-quarter view and "never tail-first" all
+  fall out of the same fact.
+- **`src/flight/route.ts`** — the serpentine and the finale window as pure functions of progress.
+  Side changes are confined to `u = 0.86 → 0.14` across a section boundary, which is the only window
+  where neither section's text is near the middle of the frame; the aircraft climbs through the gap.
+  `src/gl/zones.ts` is gone — the route replaced it.
+- **Reversal gate** (`stepGate`, `src/gl/spring.ts`): lateral travel must clear a speed *and* hold
+  its sign for a dwell before the aircraft turns around, so scroll jitter cannot trigger a U-turn.
+  One gate on lateral travel (the S-curve), one on raw scroll velocity (the finale's nose direction).
+- **Section reveal**: line-mask + fade driven by the store's reveal set, sticky, instant on nav click
+  and under reduced motion.
+- **`src/gl/Propeller.tsx`** — a procedural 3-blade propeller (extruded tapered planform, twisted,
+  on a hub and spinner) plus a shader blur disc. The glTF's own propeller is fused into the airframe
+  and cannot turn, which stops mattering here and stops being survivable in the finale. Blades and
+  disc cross-fade on rpm; visible rotation is capped under the real rate to avoid strobing.
+- **Finale**: last ~15% of scroll. Centre, turn nose-on, fly through the camera with the disc filling
+  the frame, then the screen clears onto CONTACT. Driven entirely by one 0–1 parameter, so scrolling
+  back up replays it — with the nose pointing *away*, because a receding aircraft has to.
+- **Reduced motion**: unchanged — the canvas is never mounted, the painted-dusk fallback with its
+  still aircraft stands in, and reveals are instant with no transition.
+
 ### Phase 2 — WebGL upgrade (superseded by 2A)
 - One shared `<Canvas>` behind the DOM, three.js lazy-loaded behind a capability check.
 - Low-poly aircraft flying the *same* sampled path, subscribed to the same store; per-phase world states

@@ -20,7 +20,7 @@ EXPERIMENTS turbulence — the path goes noisy, the airframe jitters, instrument
 ABOUT       descent; everything slows, calm and sparse
 CONTACT     touchdown; the contrail cuts and the world fades — a deliberate ending
 ```
-Since Phase 2A the flight is real 3D and the route is invisible: no drawn path, no waypoint markers. The aircraft is a glTF model flying in a dusk sky, holding the side of the screen opposite the text and gliding to the next zone as the section changes. Its behaviour: coordinated turns (roll leads, yaw follows), a pitch-up on fast scroll that settles, idle bob and light turbulence, propeller spin tied to speed, a lean toward the cursor. Scroll progress drives altitude, so every HUD number is a function of it and never arbitrary.
+Since Phase 2A the flight is real 3D and the route is invisible: no drawn path, no waypoint markers. The aircraft is a glTF model flying in a dusk sky. Since Phase 2B it is seen from the **side / three-quarter**, not from behind, and it **crosses** the screen: one continuous serpentine weaves left ↔ right, changing sides only in the vertical gaps between sections and settling beside each section's text, never over it. Its behaviour: nose along the direction of travel, banked into every turn, a pitch-up on fast scroll that settles, idle bob and light turbulence, a real 3-blade propeller whose blades cross-fade into a blur disc with rpm, a lean toward the cursor. A sustained reversal of travel produces a banked 180° U-turn through the front — the aircraft is never seen tail-first. Scroll progress drives altitude, so every HUD number is a function of it and never arbitrary.
 
 ## Sections (in order)
 `01 INTRO` · `02 WORK` · `03 EXPERIMENTS` · `04 ABOUT` · `05 CONTACT` (+ `/work/:slug` detail pages)
@@ -48,7 +48,8 @@ src/
   components/       # hud/ (instruments), ui/ (type reveals, links, cursor)
   sections/         # Intro, Work, Experiments, About, Contact
   flight/           # profile.ts (the flight as data), track.ts (progress -> phase/section), store.ts (one rAF loop)
-  gl/               # World.tsx (lazy canvas + fallback), Scene.tsx (sky/light/fog), Plane.tsx, CloudField.tsx, zones.ts
+  flight/route.ts   # the serpentine + the finale window, as a function of progress
+  gl/               # World.tsx (lazy canvas + fallback), Scene.tsx (sky/light/fog), Plane.tsx, Propeller.tsx, CloudField.tsx
   hooks/            # useLenis, useSectionState, useReducedMotion, useIsTouch
   pages/            # Home.tsx, Project.tsx
 public/fonts/       # self-hosted woff2 (see FONTS.md)
@@ -86,8 +87,24 @@ Build order and architecture live in PLAN.md. Read only the phase you are asked 
 Sections: 01 INTRO, 02 WORK, 03 EXPERIMENTS, 04 ABOUT, 05 CONTACT. The "qualities" list sits inside INTRO (no extra section).
 There is **no visible flight path**. The aircraft flies freely in a realistic 3D dusk sky (Phase 2A):
 one lazy R3F canvas behind the DOM, drei `<Sky>` at dusk, three parallax cloud layers that stream past.
-The world moves, the camera does not. The plane holds a screen zone on the side **opposite** each
-section's text and glides to the new zone when the section changes. All motion is critically damped
-springs — never keyframes — so nothing snaps on a fast flick or a reversed scroll.
-`src/flight/store.ts` stays the single source of truth (progress, velocity, phase, section); the GL
-layer reads it and writes the aircraft's attitude back for the HUD.
+The world moves, the camera does not. All motion is critically damped springs — never keyframes — so
+nothing snaps on a fast flick or a reversed scroll.
+`src/flight/store.ts` stays the single source of truth (progress, velocity, phase, section, reveals);
+the GL layer reads it and writes the aircraft's attitude and lateral drift back for the HUD and clouds.
+
+Phase 2B (current):
+- **Side / three-quarter view.** The camera is untouched — the *aircraft* turns. Its heading lives on
+  one arc centred on "nose at the camera"; flying-right and flying-left sit the same distance either
+  side. A spring between them therefore sweeps through the front, which is the U-turn, the
+  three-quarter view and the no-tail-first guarantee in one mechanism.
+- **Serpentine.** `src/flight/route.ts` is the whole route as a pure function of progress. Sides
+  change only between `u = 0.86` of one section and `u = 0.14` of the next, where the middle band of
+  the screen is empty; the aircraft climbs through the gap as it crosses.
+- **Reversal.** A hysteresis gate (speed threshold + dwell, `stepGate` in `src/gl/spring.ts`) decides
+  a reversal is real before the aircraft commits, so jitter cannot start a U-turn. Up and down are
+  the same curve, mirrored.
+- **Section reveal.** Line-mask + fade, triggered by the store when the aircraft passes the section.
+  Sticky. Nav clicks reveal instantly (`revealSection`); reduced motion reveals with no transition.
+- **Finale.** The last ~15% of the scroll: the aircraft centres, turns nose-on, and flies through the
+  camera with its propeller disc filling the frame, clearing the screen for CONTACT. It is a pure
+  function of progress, so scrolling back up replays it in reverse — nose *away* while receding.

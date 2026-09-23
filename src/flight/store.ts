@@ -43,6 +43,13 @@ export type FlightState = {
 
   pointerX: number
   pointerY: number
+
+  /**
+   * The aircraft's lateral travel, −1 (flying left) ... +1 (flying right), in
+   * half-viewports per second. Written by the flying layer; the cloud field
+   * reads it so the weather slides the other way as the aircraft crosses.
+   */
+  driftX: number
 }
 
 type Listener = () => void
@@ -76,9 +83,11 @@ export const state: FlightState = {
   idle: 0,
   pointerX: 0,
   pointerY: 0,
+  driftX: 0,
 }
 
 const frameListeners = new Set<Listener>()
+const revealListeners = new Set<Listener>()
 const phaseListeners = new Set<Listener>()
 const geometryListeners = new Set<Listener>()
 
@@ -92,6 +101,8 @@ let reducedMotion = false
 
 let lastTime = 0
 let pointerIdleFor = IDLE_DELAY
+const revealed = new Set<number>()
+let revealVersion = 0
 let turbulencePhaseIndex = -1
 
 /* ---- subscriptions ------------------------------------------------------- */
@@ -122,6 +133,41 @@ export function getGeometryVersion(): number {
 
 export function getTrack(): Track | null {
   return track
+}
+
+/* ---- section reveals ------------------------------------------------------ */
+
+/**
+ * Which sections the aircraft has flown past. Reveals are sticky: once a
+ * section has been passed it stays revealed, so scrolling back up never
+ * un-writes text that is already on screen.
+ */
+
+export function subscribeReveal(fn: Listener): () => void {
+  revealListeners.add(fn)
+  return () => revealListeners.delete(fn)
+}
+
+export function getRevealVersion(): number {
+  return revealVersion
+}
+
+export function isRevealed(section: number): boolean {
+  return revealed.has(section)
+}
+
+/** A nav click jumps the scroll, so its target reveals immediately. */
+export function revealSection(section: number) {
+  let changed = false
+  for (let i = 0; i <= section; i++) {
+    if (revealed.has(i)) continue
+    revealed.add(i)
+    changed = true
+  }
+  if (changed) {
+    revealVersion++
+    revealListeners.forEach((fn) => fn())
+  }
 }
 
 export function isReducedMotion(): boolean {
@@ -155,9 +201,10 @@ export function setReducedMotion(value: boolean) {
 }
 
 /** The flying layer reports back, so the instruments read the real aircraft. */
-export function setAttitude(headingDeg: number, bankRad: number) {
+export function setAttitude(headingDeg: number, bankRad: number, driftX: number) {
   state.heading = ((headingDeg % 360) + 360) % 360
   state.bank = bankRad
+  state.driftX = driftX
 }
 
 /* ---- the loop ------------------------------------------------------------ */
@@ -242,6 +289,20 @@ function resolve(dt: number, immediate: boolean) {
   /* instruments ------------------------------------------------------------ */
   state.altitude = track.altitudeAt(state.progress)
   state.speed = track.speedAt(state.progress) * (0.86 + 0.14 * state.throttle)
+
+  /* reveals ---------------------------------------------------------------- */
+  const sections = track.layout.sections.length
+  let revealChanged = false
+  for (let i = 0; i < sections; i++) {
+    if (!revealed.has(i) && state.progress >= track.route.revealAt(i)) {
+      revealed.add(i)
+      revealChanged = true
+    }
+  }
+  if (revealChanged) {
+    revealVersion++
+    revealListeners.forEach((fn) => fn())
+  }
 
   /* waypoints -------------------------------------------------------------- */
   let active = -1

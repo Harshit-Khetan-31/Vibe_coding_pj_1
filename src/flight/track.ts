@@ -7,6 +7,7 @@ import {
   type ValueKey,
 } from './profile'
 import { anchorProgress, type Layout } from './layout'
+import { buildRoute, type Route } from './route'
 
 /**
  * The flight as a function of scroll, with no geometry in it.
@@ -67,6 +68,8 @@ function sampleKeys(keys: Keyed[], progress: number): number {
 
 export class Track {
   readonly layout: Layout
+  /** where the aircraft flies: the serpentine, resolved onto this layout */
+  readonly route: Route
   readonly phases: ResolvedPhase[]
   readonly waypoints: ResolvedWaypoint[]
   private readonly altitude: Keyed[]
@@ -74,6 +77,7 @@ export class Track {
 
   constructor(layout: Layout) {
     this.layout = layout
+    this.route = buildRoute(layout)
 
     let prev = 0
     this.phases = PHASES.map((phase) => {

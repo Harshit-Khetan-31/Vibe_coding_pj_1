@@ -183,20 +183,89 @@ export const CLOUD_LAYERS: CloudLayer[] = [
 
 export const CLOUD_TEXTURE = '/textures/cloud.png'
 
+/**
+ * How hard the aircraft's lateral travel pushes the weather the other way. The
+ * side view is only convincing if crossing the screen moves the *world*, not
+ * just the aeroplane.
+ */
+export const CLOUD_LATERAL = 0.12
+
+/* ---- the view ------------------------------------------------------------ */
+
+/**
+ * Phase 2B replaced the chase/tail view with a side / three-quarter one, and it
+ * is the *aircraft* that turns, not the camera — the golden-hour framing, the
+ * sun position and the god rays are all tuned to a camera at the origin looking
+ * down -Z, and moving it would re-grade the whole picture.
+ *
+ * So: the aircraft's heading lives on a single arc centred on "nose pointing at
+ * the camera" (PI). Flying right sits `HEADING_SWEEP` to one side of it, flying
+ * left the same distance to the other, and the spring between them sweeps
+ * *through* PI. That gives three things for free: a three-quarter view in both
+ * directions (never a flat side-on silhouette), a banked turn through the front
+ * whenever the direction of travel reverses, and a heading that can never reach
+ * 0 — which is the tail-first view this phase exists to get rid of.
+ */
+export const VIEW_TOWARD_CAMERA_DEG = 22
+const HEADING_SWEEP = ((90 - VIEW_TOWARD_CAMERA_DEG) * Math.PI) / 180
+/** Nose at the camera. The middle of the arc, and the finale's heading. */
+export const HEADING_AT_CAMERA = Math.PI
+export const HEADING_RIGHT = HEADING_AT_CAMERA + HEADING_SWEEP
+export const HEADING_LEFT = HEADING_AT_CAMERA - HEADING_SWEEP
+/** Nose away from the camera. Only ever reached backing out of the finale. */
+export const HEADING_AWAY = 0
+
+/**
+ * The reversal gate. The route's lateral rate (route units per second, where a
+ * full crossing is 2) has to exceed this *and* hold its sign for this long
+ * before the aircraft commits to turning around — so scroll jitter, a trackpad
+ * bounce or a single stray wheel tick can never trigger a U-turn. Low enough
+ * that a deliberate slow scroll still reads as travel.
+ */
+export const REVERSAL_SPEED = 0.05
+export const REVERSAL_DWELL = 0.16
+/** The same gate on raw scroll velocity (progress/s), for the finale. */
+export const SCROLL_REVERSAL_SPEED = 0.02
+
+/* ---- the finale ---------------------------------------------------------- */
+
+/**
+ * The last stretch before CONTACT, as fractions of the finale's own window
+ * (see `route.ts` for where that window sits in the scroll).
+ *
+ * It is written as a pure function of progress and then chased by springs, so
+ * scrolling back up plays it backwards with no second code path — the only
+ * thing that is *not* symmetric is the heading, because an aircraft receding
+ * from the camera has to be pointing away from it.
+ */
+export const FINALE_TURN_END = 0.3
+export const FINALE_PASS_START = 0.3
+export const FINALE_PASS_END = 0.86
+/** Where the aircraft ends up: behind the camera. */
+export const FINALE_PASS_Z = 3.2
+/** Slightly in front of the near plane — past this it is simply not drawn. */
+export const FINALE_HIDE_Z = -0.15
+/** Extra propeller scale at the pass-through, so the disc covers any aspect. */
+export const FINALE_PROP_GROW = 1.35
+
 /* ---- flight model -------------------------------------------------------- */
 
 /** Spring frequencies, rad/s. Lower = heavier. */
 export const OMEGA_ZONE_X = 1.5 // lateral repositioning: slow, so the turn reads
 export const OMEGA_ZONE_Y = 2.1
-export const OMEGA_ROLL = 3.4 // roll leads…
-export const OMEGA_YAW = 1.7 // …yaw follows, at half the frequency
+export const OMEGA_ROLL = 3.4 // roll leads the turn it is banking into
 export const OMEGA_PITCH = 2.6
+/** Heading: a ~140 degree U-turn settles in about a second. */
+export const OMEGA_HEADING = 4.2
+/** Depth, used only by the finale's fly-through. */
+export const OMEGA_Z = 5.5
 
-/** Roll angle per unit of lateral speed (world units/s), radians. */
-export const ROLL_PER_LATERAL = 0.075
+/**
+ * Roll per rad/s of turn rate. The aircraft banks because it is turning, not
+ * because it is translating — which is what makes the S-curve read as flying.
+ */
+export const ROLL_PER_TURN = 0.2
 export const ROLL_MAX = 0.85
-/** Yaw the coordinated turn produces per radian of roll. */
-export const YAW_PER_ROLL = 0.42
 /** Pointer influence on roll — desktop only, and never while manoeuvring. */
 export const ROLL_PER_POINTER = 0.16
 
@@ -217,6 +286,19 @@ export const WANDER_PITCH = 0.045
 /** Propeller: revolutions per second at idle, and the throttle's contribution. */
 export const PROP_IDLE_RPS = 7
 export const PROP_MAX_RPS = 34
+/**
+ * The blades read as blades below the first figure and as a solid disc above
+ * the second; between them they cross-fade, which is what a real propeller
+ * does as it spools up.
+ */
+export const PROP_BLUR_FROM = 9
+export const PROP_BLUR_TO = 22
+/** Geometry, as fractions of the disc radius. */
+export const PROP_BLADES = 3
+export const PROP_BLADE_WIDTH = 0.17
+export const PROP_BLADE_TWIST = 0.38
+export const PROP_HUB_RADIUS = 0.13
+export const PROP_INK = '#171b2c'
 
 /* ---- screen zones -------------------------------------------------------- */
 
@@ -227,6 +309,8 @@ export const PROP_MAX_RPS = 34
  */
 export const ZONE_X_DESKTOP = 0.52
 export const ZONE_X_MOBILE = 0.26
+/** On a phone the aircraft separates itself by climbing, not by moving aside. */
+export const ZONE_Y_MOBILE_LIFT = 0.34
 
 /* ---- livery -------------------------------------------------------------- */
 

@@ -49,4 +49,47 @@ export function noise(t: number, seed: number): number {
   )
 }
 
+/**
+ * A sign with hysteresis, which is how the flight model decides that a reversal
+ * is real rather than a twitch.
+ *
+ * The input has to exceed `threshold` *and* hold the opposite sign for `dwell`
+ * seconds before the committed sign changes. Anything smaller, or anything that
+ * flickers, leaves the gate exactly where it was — so trackpad inertia, a
+ * bounced wheel tick or the last pixel of a smooth-scroll settle can never
+ * order the aircraft to turn around.
+ */
+export type Gate = { sign: number; pending: number; held: number }
+
+export function gate(sign = 1): Gate {
+  return { sign, pending: 0, held: 0 }
+}
+
+export function stepGate(
+  g: Gate,
+  value: number,
+  threshold: number,
+  dwell: number,
+  dt: number,
+): number {
+  const sign = value > threshold ? 1 : value < -threshold ? -1 : 0
+  if (sign === 0 || sign === g.sign) {
+    g.pending = 0
+    g.held = 0
+    return g.sign
+  }
+  if (sign === g.pending) {
+    g.held += dt
+  } else {
+    g.pending = sign
+    g.held = 0
+  }
+  if (g.held >= dwell) {
+    g.sign = sign
+    g.pending = 0
+    g.held = 0
+  }
+  return g.sign
+}
+
 export const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v)
