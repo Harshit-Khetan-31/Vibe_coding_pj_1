@@ -1,3 +1,4 @@
+import { HEADING_OFFSET, RUNWAY_HEADING } from './profile'
 import type { Track } from './track'
 
 /**
@@ -50,6 +51,33 @@ export type FlightState = {
    * reads it so the weather slides the other way as the aircraft crosses.
    */
   driftX: number
+
+  /**
+   * The takeoff loader, while it is on screen. It is a second, shorter flight
+   * that happens before the scrollable one, so the instruments cannot read it
+   * off `progress` — the loader writes what it is flying here instead, and the
+   * HUD prefers these values for as long as `active` is true.
+   */
+  loader: LoaderState
+
+  /**
+   * The aircraft's arrival, 0 → 1 across the last stretch of the takeoff. The
+   * 3D layer blends its pose from "below and behind the camera, climbing away"
+   * to the ordinary Intro pose across it. 1 means the entry is over, which is
+   * also what it reads when there was never a loader at all.
+   */
+  entry: number
+}
+
+export type LoaderState = {
+  active: boolean
+  /** feet, knots and degrees, exactly as the instruments will print them */
+  altitude: number
+  speed: number
+  heading: number
+  phaseLabel: string
+  /** the radio call, without the leading marker the HUD adds */
+  callout: string
 }
 
 type Listener = () => void
@@ -84,9 +112,19 @@ export const state: FlightState = {
   pointerX: 0,
   pointerY: 0,
   driftX: 0,
+  loader: {
+    active: false,
+    altitude: 0,
+    speed: 0,
+    heading: RUNWAY_HEADING,
+    phaseLabel: 'ON BLOCKS',
+    callout: 'RWY 11',
+  },
+  entry: 1,
 }
 
 const frameListeners = new Set<Listener>()
+const loaderListeners = new Set<Listener>()
 const revealListeners = new Set<Listener>()
 const phaseListeners = new Set<Listener>()
 const geometryListeners = new Set<Listener>()
@@ -209,6 +247,120 @@ export function setPropellerCoverage(fraction: number) {
   }
 }
 
+/* ---- the takeoff loader --------------------------------------------------- */
+
+/**
+ * The loader plays once per session, and the decision is made here rather than
+ * inside the component so that every part of the first frame — the overlay, the
+ * masthead that has to stay out of its way — asks the same question and gets
+ * the same answer, whatever order React happens to mount them in.
+ *
+ * `sessionStorage` is read defensively: it throws in some privacy modes, and a
+ * failed read should mean "play it" rather than "crash the page".
+ */
+
+const LOADER_SEEN_KEY = 'loader-seen'
+
+let loaderDecided = false
+let loaderPlays = false
+let loaderVersion = 0
+
+export function loaderShouldPlay(): boolean {
+  if (!loaderDecided) {
+    loaderDecided = true
+    try {
+      loaderPlays = sessionStorage.getItem(LOADER_SEEN_KEY) !== '1'
+    } catch {
+      loaderPlays = true
+    }
+    state.loader.active = loaderPlays
+    // with no loader there is no arrival to blend, so the aircraft is simply
+    // already there
+    state.entry = loaderPlays ? 0 : 1
+  }
+  return loaderPlays
+}
+
+/* ---- what the counter is counting ---------------------------------------- */
+
+/**
+ * The four things that have to happen before the page is ready, each reported
+ * as 0–1 by whoever actually knows: the document for its fonts, `World` for the
+ * Scene chunk, drei's `useProgress` for the glTF and its textures, and the
+ * renderer itself once it has compiled and drawn twice.
+ *
+ * They live here rather than in the loader because the reporters are all over
+ * the app and none of them should have to import a component to say so — and
+ * because when the world is never going to be drawn at all (reduced motion, no
+ * WebGL) `World` can simply mark them done.
+ */
+export type LoadPart = 'fonts' | 'chunk' | 'assets' | 'world'
+
+const loadParts: Record<LoadPart, number> = { fonts: 0, chunk: 0, assets: 0, world: 0 }
+let loaderFailed = false
+
+export function setLoadPart(part: LoadPart, value: number) {
+  const v = value < 0 ? 0 : value > 1 ? 1 : value
+  // monotonic: useProgress restarts its own count every time a new loader
+  // manager run begins, and the visitor should never watch a number fall
+  if (v > loadParts[part]) loadParts[part] = v
+}
+
+export function getLoadParts(): Readonly<Record<LoadPart, number>> {
+  return loadParts
+}
+
+/** A glTF that will not load. The loader stops waiting and hands over. */
+export function failLoader() {
+  loaderFailed = true
+}
+
+export function isLoaderFailed(): boolean {
+  return loaderFailed
+}
+
+export function subscribeLoader(fn: Listener): () => void {
+  loaderListeners.add(fn)
+  return () => loaderListeners.delete(fn)
+}
+
+export function getLoaderVersion(): number {
+  return loaderVersion
+}
+
+export function isLoaderActive(): boolean {
+  return state.loader.active
+}
+
+/** Per-frame readout from the loader's own rAF loop. Never through React. */
+export function setLoaderReadout(next: Partial<Omit<LoaderState, 'active'>>) {
+  Object.assign(state.loader, next)
+}
+
+/** How far through the arrival the aircraft is, 0 → 1. */
+export function setEntry(value: number) {
+  state.entry = value < 0 ? 0 : value > 1 ? 1 : value
+}
+
+/**
+ * The chrome handoff: the instruments go back to reading the scroll, the rail
+ * and the masthead come back, the scroll unlocks, and the loader will not play
+ * again this session. The overlay itself is still on screen for the last of the
+ * climb — it owns its own unmount — and `state.entry` keeps running, so this
+ * deliberately leaves the arrival alone.
+ */
+export function endLoader() {
+  if (!state.loader.active) return
+  state.loader.active = false
+  try {
+    sessionStorage.setItem(LOADER_SEEN_KEY, '1')
+  } catch {
+    // best-effort: at worst the loader plays once more
+  }
+  loaderVersion++
+  loaderListeners.forEach((fn) => fn())
+}
+
 export function isReducedMotion(): boolean {
   return reducedMotion
 }
@@ -241,7 +393,9 @@ export function setReducedMotion(value: boolean) {
 
 /** The flying layer reports back, so the instruments read the real aircraft. */
 export function setAttitude(headingDeg: number, bankRad: number, driftX: number) {
-  state.heading = ((headingDeg % 360) + 360) % 360
+  // HEADING_OFFSET turns the 3D layer's own frame into a compass, so the pose
+  // the Intro settles into reads as runway 11 and the handoff has no jump
+  state.heading = (((headingDeg + HEADING_OFFSET) % 360) + 360) % 360
   state.bank = bankRad
   state.driftX = driftX
 }

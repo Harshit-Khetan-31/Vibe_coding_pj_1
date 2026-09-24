@@ -1,19 +1,32 @@
+import { useState } from 'react'
 import { useLenis } from './hooks/useLenis'
+import { Loader } from './components/loader/Loader'
 import { Nav } from './components/Nav'
+import { Header } from './components/Header'
 import { World } from './gl/World'
 import { Hud } from './components/hud/Hud'
 import { Intro } from './sections/Intro'
 import { Placeholder } from './sections/Placeholder'
 import { Contact } from './sections/Contact'
+import { loaderShouldPlay } from './flight/store'
 import { profile } from './content/profile'
 
 export default function App() {
   useLenis()
+  /**
+   * The takeoff plays once per session, and the decision is the store's so that
+   * the masthead asks the same question and gets the same answer. The overlay
+   * unmounts itself through `onDone`; everything underneath it is mounted from
+   * the first frame and loads behind it.
+   */
+  const [loading, setLoading] = useState(loaderShouldPlay)
 
   return (
     <>
+      {loading && <Loader onDone={() => setLoading(false)} />}
       <World />
       <Hud />
+      <Header />
       <Nav />
       <main className="content">
         <Intro number={profile.sections[0].number} />

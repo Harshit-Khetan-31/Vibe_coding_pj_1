@@ -1,6 +1,13 @@
 import { useEffect } from 'react'
 import Lenis from 'lenis'
-import { resetClock, setReducedMotion, setScroll, tick } from '../flight/store'
+import {
+  isLoaderActive,
+  resetClock,
+  setReducedMotion,
+  setScroll,
+  subscribeLoader,
+  tick,
+} from '../flight/store'
 
 /**
  * The one rAF loop in the app. Lenis smooths the scroll and hands the position
@@ -49,6 +56,25 @@ export function useLenis() {
     }
     instance = lenis
 
+    /**
+     * Nothing scrolls while the takeoff is on screen. Lenis is stopped rather
+     * than destroyed so the wheel events it swallows are simply discarded, and
+     * it is started again at the handoff — the same moment the rail and the
+     * masthead come back. The native side of the lock is a CSS rule on the body
+     * (see Loader.css), and the browser's own scroll restoration is turned off
+     * by the loader itself.
+     */
+    let unsubscribeLoader: (() => void) | null = null
+    if (isLoaderActive()) {
+      lenis?.stop()
+      window.scrollTo(0, 0)
+      unsubscribeLoader = subscribeLoader(() => {
+        if (isLoaderActive()) return
+        lenis?.start()
+        onScroll?.()
+      })
+    }
+
     let frame = 0
     const loop = (time: number) => {
       lenis?.raf(time)
@@ -65,6 +91,7 @@ export function useLenis() {
 
     return () => {
       cancelAnimationFrame(frame)
+      unsubscribeLoader?.()
       document.removeEventListener('visibilitychange', onVisibility)
       if (onScroll) {
         window.removeEventListener('scroll', onScroll)

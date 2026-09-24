@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { profile } from '../content/profile'
 import {
+  isLoaderActive,
   isReducedMotion,
   revealSection,
   state,
@@ -122,7 +123,7 @@ export function Header() {
     }
     measure()
 
-    let hidden = false
+    let hidden = isLoaderActive()
     let direction = 0 // -1 up, +1 down, 0 undecided
     let y = state.progress * limit
     let anchor = state.progress * limit // where the current run of travel began
@@ -141,6 +142,17 @@ export function Header() {
       y = state.progress * limit
       const delta = y - previous
       previous = y
+
+      // The takeoff owns the screen: the bar waits it out in its hidden state
+      // and comes back through its own show dissolve at the handoff, which is
+      // the same moment the rail fades in. Re-anchoring each frame means the
+      // wait cannot be mistaken for travel once it is over.
+      if (state.loader.active) {
+        anchor = y
+        direction = 0
+        set(true)
+        return
+      }
 
       // Keyboard focus inside the bar outranks the scroll entirely.
       if (focused || y < ALWAYS_SHOWN_ABOVE) {
@@ -254,7 +266,7 @@ export function Header() {
   }
 
   return (
-    <header className="header" ref={root} data-hidden="false">
+    <header className="header" ref={root} data-hidden={isLoaderActive() ? 'true' : 'false'}>
       <a className="header__mark" href="#intro" onClick={go(0)} aria-label="Harshit — back to top">
         <svg className="header__glyph" viewBox="0 0 16 16" aria-hidden="true">
           <path d="M8 1.5 L14 14.5 L8 11.4 L2 14.5 Z" />

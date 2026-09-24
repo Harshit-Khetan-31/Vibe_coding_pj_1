@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Runway loader: design reference</title>
+<!-- DESIGN REFERENCE ONLY. Not part of the app build. Open in a browser to see the target
+     behaviour. Implement it inside the app per docs/LOADER_PROMPTS.md. Loading progress in
+     this file is simulated; the aircraft and sky at the end are 2D stand-ins for the real 3D scene. -->
+<style>
+@font-face{font-family:BSD;src:url(../public/fonts/BigShouldersDisplay-latin.woff2) format('woff2');font-weight:100 900}
+@font-face{font-family:DM;src:url(../public/fonts/DepartureMono-Regular.woff2) format('woff2')}
+@font-face{font-family:IT;src:url(../public/fonts/InterTight-latin.woff2) format('woff2');font-weight:100 900}
+/* the site's own tokens (src/styles/tokens.css) */
+:root{--bg:#070708;--fg:#ECEAE4;--dim:#7A7873;--line:rgb(236 234 228/.1);--accent:#4B63FF;--ease-ui:cubic-bezier(.16,1,.3,1)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--fg);overflow:hidden;font-family:IT,system-ui,sans-serif}
+
+/* stand-in for the real 3D golden-hour world the loader hands off to */
+#sky{position:fixed;inset:0;opacity:0;overflow:hidden;background:
+ radial-gradient(50% 32% at 70% 78%,rgb(255 186 110/.55),transparent 70%),
+ radial-gradient(95% 60% at 65% 105%,#a4606a 0%,transparent 70%),
+ linear-gradient(180deg,#171a33 0%,#2a2547 34%,#56405f 60%,#9a5e62 82%,#d98a5c 100%)}
+#sky .sun{position:absolute;left:70%;top:77%;width:9vmin;height:9vmin;margin:-4.5vmin;border-radius:50%;background:radial-gradient(#fff4dc,#ffc070 42%,rgb(255 170 90/0) 70%)}
+#sky .cl{position:absolute;border-radius:50%;filter:blur(24px);animation:drift 40s linear infinite alternate}
+@keyframes drift{from{transform:translateX(5vw)}to{transform:translateX(-5vw)}}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+/* ---- the site's HUD, present from the first frame ---- */
+.hud{position:fixed;inset:0;pointer-events:none;font:12px/1 DM;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);opacity:0;transition:opacity .9s}
+.hud.on{opacity:1}
+.hud .top{position:absolute;top:28px;right:32px;display:grid;grid-template-columns:auto 5.5ch;gap:8px 14px}
+.hud .top b{font-weight:400;color:var(--fg);text-align:right}
+.hud .bot{position:absolute;bottom:30px;right:32px;text-align:right;display:grid;gap:8px}
+.hud .call{color:var(--fg);min-height:1em;transition:opacity .25s}
+.hud .call.flash{animation:flash .5s steps(2) 2}
+@keyframes flash{50%{opacity:.2}}
+.hud .phase{color:var(--fg)}
+.hud .brk{position:absolute;width:12px;height:12px;border:1px solid var(--fg);opacity:.35}
+.brk.tl{top:16px;left:16px;border-width:1px 0 0 1px}.brk.tr{top:16px;right:16px;border-width:1px 1px 0 0}
+.brk.bl{bottom:16px;left:16px;border-width:0 0 1px 1px}.brk.br{bottom:16px;right:16px;border-width:0 1px 1px 0}
+.count{position:fixed;left:50%;bottom:11vh;transform:translateX(-50%);font:14px/1 DM;letter-spacing:.14em;color:var(--fg);transition:opacity .4s}
+.skip{position:fixed;left:50%;bottom:calc(11vh - 26px);transform:translateX(-50%);font:11px/1 IT;color:var(--dim);opacity:0;transition:opacity .4s;white-space:nowrap}
+.skip.on{opacity:.8}
+
+/* ---- the site's first frame ---- */
+.nav{position:fixed;left:28px;top:50%;transform:translateY(-50%);display:grid;gap:16px;font:12px/1 DM;letter-spacing:.12em;color:var(--dim);opacity:0;transition:opacity .8s .5s}
+.nav span{display:flex;align-items:center;gap:10px}.nav span::before{content:'';width:12px;height:1px;background:currentColor}
+.nav .on{color:var(--fg)}.nav .on::before{width:26px}
+.nav.show{opacity:1}
+.intro{position:fixed;left:clamp(20px,17vw,240px);top:26vh;pointer-events:none}
+.intro .m{display:block;overflow:hidden;padding:0 24px .12em;margin:0 -24px -.12em}
+.intro .m>*{display:block;transform:translate3d(0,130%,0);opacity:0;transition:transform .9s var(--ease-ui),opacity .6s ease}
+.intro.on .m>*{transform:translate3d(0,0,0);opacity:1}
+.intro.on .m:nth-child(2)>*{transition-delay:.07s}.intro.on .m:nth-child(3)>*{transition-delay:.16s}
+.intro .eb{font:500 13px/1 BSD;color:var(--dim);letter-spacing:.04em;margin-bottom:14px}
+.intro h1{font:700 clamp(76px,13vw,190px)/.86 BSD;letter-spacing:-.02em;text-transform:uppercase;text-shadow:0 1px 2px rgb(4 4 10/.5),0 2px 12px rgb(4 4 10/.35)}
+.intro p{font:400 clamp(16px,1.4vw,19px)/1.5 IT;color:#d8d5ce;margin-top:22px;max-width:30ch;text-shadow:0 1px 2px rgb(4 4 10/.55),0 2px 14px rgb(4 4 10/.45)}
+
+.ui{position:fixed;left:50%;top:14px;transform:translateX(-50%);display:flex;gap:4px;padding:4px;border-radius:999px;background:rgb(20 20 24/.72);border:1px solid rgb(236 234 228/.12);backdrop-filter:blur(8px);z-index:9}
+.ui button,.ui label{font:500 12px/1 IT;color:#b9b7b1;background:none;border:0;padding:8px 12px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.ui button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ui input{accent-color:#ECEAE4}
+@media (max-width:600px){.hud .top{top:20px;right:18px}.hud .bot{right:18px;bottom:22px}.nav{display:none}.intro{top:22vh}.ui{left:14px;transform:none;top:14px}}
+</style></head>
+<body>
+<div id="sky">
+  <div class="cl" style="left:44%;top:70%;width:62vw;height:12vh;background:rgb(255 205 160/.3)"></div>
+  <div class="cl" style="left:12%;top:82%;width:74vw;height:15vh;background:rgb(150 90 110/.45);animation-duration:55s"></div>
+  <div class="cl" style="left:60%;top:24%;width:30vw;height:6vh;background:rgb(170 140 190/.2);animation-duration:70s"></div>
+  <div class="sun"></div>
+</div>
+<canvas id="c" aria-hidden="true"></canvas>
+
+<nav class="nav" id="nav" aria-hidden="true"><span class="on">01 INTRO</span><span>02 WORK</span><span>03 EXPERIMENTS</span><span>04 ABOUT</span><span>05 CONTACT</span></nav>
+<div class="intro" id="intro">
+  <span class="m"><span class="eb">01</span></span>
+  <span class="m"><h1>Harshit</h1></span>
+  <span class="m"><p>I keep building things to figure out what I want to build.</p></span>
+</div>
+
+<div class="hud" id="hud" aria-hidden="true">
+  <i class="brk tl"></i><i class="brk tr"></i><i class="brk bl"></i><i class="brk br"></i>
+  <div class="top"><span>ALT</span><b id="alt">00000</b><span>GS</span><b id="gs">000</b><span>HDG</span><b id="hdg">110</b></div>
+  <div class="bot"><div class="call" id="call"></div><div class="phase" id="phase">ON BLOCKS</div><div id="idx">01 / INTRO</div></div>
+</div>
+<div class="count" id="count" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">000</div>
+<div class="skip" id="skip">Click or press any key to skip</div>
+
+<div class="ui" role="group" aria-label="Preview controls">
+  <label title="Simulate a slow connection"><input type="checkbox" id="slow"> Slow connection</label>
+  <button id="replay">Replay</button>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),$=id=>document.getElementById(id);
+const sky=$('sky'),intro=$('intro'),hud=$('hud'),nav=$('nav'),countEl=$('count'),skipEl=$('skip'),callEl=$('call'),phaseEl=$('phase');
+const clamp=(v,a,b)=>v<a?a:v>b?b:v,lerp=(a,b,t)=>a+(b-a)*t;
+const sstep=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t)};
+const ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2, easeOut=t=>1-Math.pow(1-t,3);
+const rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
+const pad=(n,w)=>String(Math.max(0,Math.round(n))).padStart(w,'0');
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+// real runway light colours
+const WHITE=[255,238,212],AMBER=[255,186,84],RED=[255,76,64],GREEN=[96,232,150],INK=[236,234,228];
+
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}
+
+/* ---------- simulated load: stalls included, because real ones have them ---------- */
+const FAST=[[0,0],[260,17],[620,21],[980,46],[1320,70],[1780,73],[2150,100]];
+const SLOW=[[0,0],[500,9],[1400,14],[2600,38],[3400,41],[4600,66],[5900,71],[6900,100]];
+let PLAN=FAST;
+const target=t=>{for(let i=1;i<PLAN.length;i++){const[a,va]=PLAN[i-1],[b,vb]=PLAN[i];if(t<=b){const u=(t-a)/(b-a);return lerp(va,vb,u*u*(3-2*u))}}return 100};
+
+/* ---------- scene data ---------- */
+const N=28,HW=1.6,Z0=1.3;       // edge-light rows, runway half width, threshold distance
+let rnd, stars=[],town=[],puffs=[];
+function seed(){let s=11;rnd=()=>(s=(s*16807)%2147483647)/2147483647;
+  stars=Array.from({length:80},()=>({x:rnd(),y:rnd(),r:rnd()*.9+.3,a:rnd()*.3+.06,ph:rnd()*6}));
+  town=Array.from({length:60},()=>{let x;do{x=rnd()}while(Math.abs(x-.5)<.08);return{x,h:rnd()*3,a:rnd()*.45+.12,ph:rnd()*6,c:rnd()<.75?AMBER:WHITE}});
+  puffs=Array.from({length:9},(_,i)=>({x:(rnd()-.5)*1.8,y:(rnd()-.5)*.9,z:.3+i*.2,s:rnd()*.6+.75}))}
+
+/* ---------- state ---------- */
+let t0,last,T,p,phase,hand,holdT,doneT,speedup,px=0,py=0,tpx=0,tpy=0,calls;
+function reset(){t0=last=performance.now();T=0;p=0;phase='load';hand=0;holdT=0;doneT=0;speedup=1;calls=new Set();
+  PLAN=$('slow').checked?SLOW:FAST;
+  sky.style.transition='none';sky.style.opacity=0;intro.classList.remove('on');nav.classList.remove('show');hud.classList.remove('on');
+  countEl.style.opacity=1;skipEl.classList.remove('on');callEl.textContent='> RWY 11';phaseEl.textContent='ON BLOCKS';
+  $('alt').textContent='00000';$('gs').textContent='000'}
+function call(txt){callEl.textContent='> '+txt;callEl.classList.remove('flash');void callEl.offsetWidth;callEl.classList.add('flash')}
+
+/* pointer: the whole view leans a few pixels toward the cursor, nearer things more */
+addEventListener('pointermove',e=>{tpx=e.clientX/W*2-1;tpy=e.clientY/H*2-1});
+function skip(){if(phase==='hold'||phase==='hand')speedup=4}
+addEventListener('pointerdown',e=>{if(!e.target.closest('.ui'))skip()});
+addEventListener('keydown',e=>{if(e.key!=='Tab')skip()});
+
+/* ---------- the aircraft, seen from behind, climbing away ---------- */
+function drawPlane(x,y,s,bank,a,t){
+  ctx.save();ctx.translate(x,y);ctx.rotate(bank);ctx.scale(s,s);ctx.globalAlpha=a;
+  const body='#1b1830',rim='rgba(255,196,130,.55)';
+  ctx.fillStyle=body;ctx.strokeStyle=rim;ctx.lineWidth=1/s;
+  // wings with dihedral
+  ctx.beginPath();ctx.moveTo(-64,-1);ctx.lineTo(-9,3.5);ctx.lineTo(9,3.5);ctx.lineTo(64,-1);ctx.lineTo(64,1.8);ctx.lineTo(9,7.5);ctx.lineTo(-9,7.5);ctx.lineTo(-64,1.8);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(-64,-1);ctx.lineTo(-9,3.5);ctx.moveTo(9,3.5);ctx.lineTo(64,-1);ctx.stroke();
+  // tailplane and fin
+  ctx.fillRect(-23,-9,46,2.6);
+  ctx.beginPath();ctx.moveTo(-1.6,-6);ctx.lineTo(-.8,-27);ctx.lineTo(1.2,-27);ctx.lineTo(1.8,-6);ctx.closePath();ctx.fill();ctx.stroke();
+  // fuselage and canopy
+  ctx.beginPath();ctx.ellipse(0,2,9,8.5,0,0,7);ctx.fill();ctx.beginPath();ctx.ellipse(0,1,9,8.5,0,Math.PI*1.1,Math.PI*1.9);ctx.stroke();
+  ctx.fillStyle='rgba(236,234,228,.16)';ctx.beginPath();ctx.ellipse(0,-3.5,5.5,3.5,0,Math.PI,0);ctx.fill();
+  // nav lights: red port, green starboard, white tail strobe
+  const glow=(cx,cy,c,r,al)=>{const g=ctx.createRadialGradient(cx,cy,0,cx,cy,r);g.addColorStop(0,rgba(c,al));g.addColorStop(1,rgba(c,0));ctx.fillStyle=g;ctx.fillRect(cx-r,cy-r,r*2,r*2)};
+  glow(-64,.4,RED,6,.9);glow(64,.4,GREEN,6,.9);
+  const strobe=(t%1.4)<.07||((t%1.4)>.16&&(t%1.4)<.22);if(strobe)glow(0,-27,[255,255,255],8,.95);
+  ctx.restore();
+}
+
+/* ---------- one frame ---------- */
+function draw(dt){
+  const pn=p/100;
+  const u=phase==='hand'||phase==='done'?clamp(hand,0,1):0;
+  px+=(tpx-px)*(1-Math.exp(-dt/.35));py+=(tpy-py)*(1-Math.exp(-dt/.35));
+  const roll=clamp(u/.55,0,1), camZ=12*Math.pow(roll,2.4);
+  const pitch=ease(sstep(.42,.82,u));
+  const dark=1-pitch;
+  // engine run-up: a faint tremor that grows with the load, then real vibration on the roll
+  const tremor=(phase==='load'?.25*pn:phase==='hold'?.5:0)+(phase==='hand'?1.6*roll*(1-pitch):0);
+  const sh=Math.sin(T*71)*tremor, sv=Math.cos(T*57)*tremor*.6;
+  const f=Math.min(H*.46,W*.55);
+  const y0=H*.46+H*1.08*pitch-py*H*.012+sv;
+  const cx=W/2-px*W*.018+sh;
+  ctx.fillStyle=`rgba(7,7,8,${dark})`;ctx.fillRect(0,0,W,H);
+  const proj=(x,z)=>{const sc=f/z;return[cx+x*sc,y0+sc,sc]};
+
+  if(dark>.01){
+    // stars and the town strung along the horizon (distant: they barely move with the pointer)
+    for(const s of stars){const a=s.a*(.7+.3*Math.sin(T*1.6+s.ph))*dark;ctx.fillStyle=rgba(INK,a);ctx.fillRect(s.x*W+px*4,y0-12-s.y*y0*.9,s.r,s.r)}
+    for(const t of town){const a=t.a*(.7+.3*Math.sin(T*2.6+t.ph))*dark;ctx.fillStyle=rgba(t.c,a);ctx.fillRect(t.x*W-px*W*.006,y0-1.5-t.h,1.3,1.3)}
+    const hg=ctx.createLinearGradient(0,y0-50,0,y0+6);hg.addColorStop(0,'rgba(255,170,90,0)');hg.addColorStop(1,`rgba(255,170,90,${.08*dark})`);ctx.fillStyle=hg;ctx.fillRect(0,y0-50,W,56);
+    // airport beacon: alternating green and white, the way real ones rotate
+    {const bx=W*.17-px*W*.006,by=y0-7,ph=(T%2)/2,a=Math.exp(-Math.pow((ph%.5)-.03,2)/.0012)*dark,c=ph<.5?GREEN:WHITE;
+      const g=ctx.createRadialGradient(bx,by,0,bx,by,16);g.addColorStop(0,rgba(c,.8*a));g.addColorStop(1,rgba(c,0));ctx.fillStyle=g;ctx.fillRect(bx-16,by-16,32,32);
+      ctx.fillStyle=rgba(INK,.35*dark);ctx.fillRect(bx-.5,by,1,6)}
+    // runway surface
+    const zf=Z0+N+.5,[nlx,nly]=proj(-HW*1.06,.32),[nrx]=proj(HW*1.06,.32),[flx,fly]=proj(-HW*1.06,zf),[frx]=proj(HW*1.06,zf);
+    const sg=ctx.createLinearGradient(0,fly,0,H);sg.addColorStop(0,'rgba(236,234,228,0)');sg.addColorStop(1,`rgba(236,234,228,${.03*dark})`);
+    ctx.fillStyle=sg;ctx.beginPath();ctx.moveTo(nlx,nly);ctx.lineTo(flx,fly);ctx.lineTo(frx,fly);ctx.lineTo(nrx,nly);ctx.closePath();ctx.fill();
+    const quad=(x0,x1,z0,z1,a)=>{if(z1<=.32)return;z0=Math.max(z0,.32);const[a1,b1]=proj(x0,z0),[a2]=proj(x1,z0),[a3,b3]=proj(x0,z1),[a4]=proj(x1,z1);
+      ctx.fillStyle=rgba(INK,a);ctx.beginPath();ctx.moveTo(a1,b1);ctx.lineTo(a2,b1);ctx.lineTo(a4,b3);ctx.lineTo(a3,b3);ctx.closePath();ctx.fill()};
+    for(let i=0;i<6;i++){const w=.17,g=.07,x=HW*.93-i*(w+g);quad(x-w,x,Z0+.3-camZ,Z0+1.35-camZ,.07*dark);quad(-x,-x+w,Z0+.3-camZ,Z0+1.35-camZ,.07*dark)}
+    {const za=Z0+1.75-camZ,zb=Z0+3.7-camZ;if(za>.4){const[,yb]=proj(0,za),[,ya]=proj(0,zb),scm=f/((za+zb)/2);
+      // digits painted either side of the centreline, like real runway markings
+      for(const[d,x]of[['1',-.3],['1',.3]]){ctx.save();ctx.translate(cx+x*scm,yb);ctx.scale(scm*.012,(yb-ya)/100);ctx.fillStyle=rgba(INK,.085*dark);ctx.font='800 100px BSD';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(d,0,4);ctx.restore()}}}
+    for(let z=Z0+4.3;z<zf;z+=1.1)quad(-.028,.028,z-camZ,z+.55-camZ,.07*dark);
+  }
+
+  // lights. Sequence: threshold first, then outward; the red end bar lights last, at 100%.
+  const front=pn*(N+1), pulse=((T*.9)%1.1)*Math.max(front,1);
+  const vel=phase==='hand'&&roll<1?26*Math.pow(roll,1.4)*dt*(speedup):0;
+  const light=(x,z,col,sz,lit,i)=>{if(z<.32||lit<=0&&dark<.01)return;const[lx,ly,sc]=proj(x,z);if(ly>H+60||lx<-60||lx>W+60)return;
+    const rad=Math.max(.8,.03*sc*sz);
+    ctx.fillStyle=`rgba(236,234,228,${.1*dark})`;ctx.beginPath();ctx.arc(lx,ly,rad*.65,0,7);ctx.fill();
+    if(lit<=0)return;
+    const boost=phase==='load'?Math.exp(-Math.pow(i-pulse,2)/1.4)*.55:0;
+    const a=lit*(1-pitch*.93)*(.82+boost);
+    if(vel>0){const[qx,qy]=proj(x,z+vel);ctx.strokeStyle=rgba(col,.4*a);ctx.lineWidth=rad*1.25;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(qx,qy);ctx.lineTo(lx,ly);ctx.stroke()}
+    const g=ctx.createRadialGradient(lx,ly,0,lx,ly,rad*3.8);g.addColorStop(0,rgba(col,.5*a));g.addColorStop(1,rgba(col,0));ctx.fillStyle=g;ctx.fillRect(lx-rad*3.8,ly-rad*3.8,rad*7.6,rad*7.6);
+    ctx.fillStyle=rgba(col,Math.min(1,a));ctx.beginPath();ctx.arc(lx,ly,rad,0,7);ctx.fill()};
+  for(let i=0;i<N;i++){const z=Z0+i-camZ,lit=clamp(front-i,0,1);
+    if(i===0){for(const x of[-HW,-HW*.7,-HW*.4,HW*.4,HW*.7,HW])light(x,z,GREEN,.8,lit,i);continue}
+    // edge lights turn amber for the last stretch of runway: the caution zone
+    const col=i>=N-8?AMBER:WHITE;light(-HW,z,col,1,lit,i);light(HW,z,col,1,lit,i);
+    // centreline every half row: white, then red/white alternating, then red
+    for(const h of[0,.5]){const c=(i+h)*2,rem=2*N-c,cc=rem<=6?RED:rem<=14?(Math.round(c)%2?RED:WHITE):WHITE;light(0,z+h,cc,.5,clamp(front-i-h,0,1),i)}}
+  {const z=Z0+N-camZ,lit=clamp(front-N,0,1);for(const x of[-HW,-HW*.66,-HW*.33,HW*.33,HW*.66,HW])light(x,z,RED,.9,lit,N)}
+
+  // the cloud deck, on the way up
+  const cloud=sstep(.5,.68,u)*(1-sstep(.74,.95,u));
+  if(cloud>0){const cz=(u-.5)*3.4;
+    for(const q of puffs){const z=q.z-cz+.95;if(z<=.05||z>2.2)continue;const sc=1/z,r=Math.min(W,H)*.55*q.s*sc;
+      const qx=W/2+q.x*W*.5*sc-px*20*sc,qy=H/2+q.y*H*.5*sc,a=cloud*sstep(2.2,1.3,z)*sstep(.05,.35,z)*.6;
+      const g=ctx.createRadialGradient(qx,qy,0,qx,qy,r);g.addColorStop(0,`rgba(250,218,192,${a})`);g.addColorStop(1,'rgba(250,218,192,0)');ctx.fillStyle=g;ctx.fillRect(qx-r,qy-r,r*2,r*2)}}
+
+  // out of the cloud, the camera drops back and you see the aircraft you were flying
+  const pe=sstep(.7,1,u);
+  if(pe>0){const k=easeOut(pe),bob=phase==='done'?Math.sin(doneT*1.25)*H*.007:0;
+    const tx=lerp(W*.5,W>600?W*.74:W*.62,k)-px*W*.02,ty=lerp(H*1.25,H*(W>600?.52:.66),k)+bob-py*H*.015;
+    const s=lerp(3.4,Math.min(W,1400)/560,k)*(W>600?1:.8);
+    const bank=lerp(-.35,0,k)+(phase==='done'?Math.sin(doneT*.8)*.05+px*.08:0);
+    drawPlane(tx,ty,s,bank,sstep(0,.35,pe),T)}
+  // soft vignette keeps the eye centred on the runway
+  if(dark>.01){const vg=ctx.createRadialGradient(W/2,H*.55,Math.min(W,H)*.3,W/2,H*.55,Math.max(W,H)*.75);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,`rgba(0,0,0,${.5*dark})`);ctx.fillStyle=vg;ctx.fillRect(0,0,W,H)}
+  return{u,roll,pitch}
+}
+
+/* ---------- instruments: they report the same flight you are watching ---------- */
+function instruments(st){
+  const {u,roll}=st;
+  const gs=phase==='hand'||phase==='done'?Math.min(152,152*Math.pow(roll,.8)+ (u>.55?0:0)):0;
+  const alt=phase==='done'||phase==='hand'?1480*easeOut(sstep(.52,1,u))+(phase==='done'?Math.min(doneT*30,40):0):0;
+  $('gs').textContent=pad(gs,3);$('alt').textContent=pad(alt,5);
+  if(phase==='hand'){
+    if(u>.02&&!calls.has('roll')){calls.add('roll');phaseEl.textContent='ROTATION'}
+    if(gs>=108&&!calls.has('v1')){calls.add('v1');call('V1')}
+    if(gs>=126&&!calls.has('vr')){calls.add('vr');call('ROTATE')}
+    if(u>.6&&!calls.has('pc')){calls.add('pc');call('POSITIVE CLIMB');phaseEl.textContent='CLIMB'}
+  }
+}
+
+function frame(now){
+  const raw=clamp((now-last)/1000,0,1/20);last=now;
+  const dt=raw*(phase==='load'?1:speedup);T+=raw;
+  if(phase==='load'){
+    const tg=target(now-t0);p+=(tg-p)*(1-Math.exp(-raw/.09));
+    if(T>.25)hud.classList.add('on');
+    if(tg>=100&&p>99.6){p=100;phase='hold';call('CLEARED FOR TAKEOFF')}
+  }else if(phase==='hold'){holdT+=dt;if(holdT>.25)countEl.style.opacity=0;if(holdT>.2)skipEl.classList.add('on');
+    if(holdT>.75){phase='hand';sky.style.transition=`opacity ${1.2/speedup}s ease ${1.6/speedup}s`;sky.style.opacity=1}}
+  else if(phase==='hand'){hand+=dt/3.3;
+    if(speedup>1){sky.style.transition='opacity .4s';sky.style.opacity=1}
+    if(hand>.8&&!intro.classList.contains('on')){intro.classList.add('on');nav.classList.add('show');skipEl.classList.remove('on')}
+    if(hand>=1){hand=1;phase='done';skipEl.classList.remove('on')}}
+  else doneT+=raw;
+  countEl.textContent=pad(p,3);countEl.setAttribute('aria-valuenow',Math.round(p));
+  ctx.clearRect(0,0,W,H);
+  if(reduced){ // no roll, no parallax: the counter, then a plain fade to the site
+    if(phase!=='load'){sky.style.transition='opacity .6s';sky.style.opacity=1;intro.classList.add('on');nav.classList.add('show');hand=1;phase='done'}
+    else{ctx.fillStyle='#070708';ctx.fillRect(0,0,W,H)}
+  }else instruments(draw(dt));
+  requestAnimationFrame(frame);
+}
+$('replay').onclick=reset;$('slow').onchange=reset;
+addEventListener('resize',resize);resize();seed();
+document.fonts.ready.then(()=>{reset();requestAnimationFrame(frame)});
+</script>
+</body></html>

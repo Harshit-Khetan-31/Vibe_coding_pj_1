@@ -1,7 +1,8 @@
-import { Suspense, useState } from 'react'
-import { Canvas } from '@react-three/fiber'
-import { Environment, Preload } from '@react-three/drei'
+import { Suspense, useEffect, useRef, useState } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Environment, Preload, useProgress } from '@react-three/drei'
 import { ACESFilmicToneMapping, Mesh, Vector3 } from 'three'
+import { failLoader, setLoadPart } from '../flight/store'
 import { CloudField } from './CloudField'
 import { Effects } from './Effects'
 import { Plane } from './Plane'
@@ -30,13 +31,63 @@ import {
 
 const SUN_VECTOR = new Vector3(...SUN_DIRECTION)
 
+/**
+ * The loader's two remaining signals, reported from inside the chunk that
+ * actually knows them.
+ *
+ * `useProgress` is drei's view of three's loading manager, so it covers the
+ * glTF and every texture it pulls in — and it lives here rather than in the
+ * loader because importing it there would drag drei, and three behind it, into
+ * the initial bundle that the whole lazy-chunk arrangement exists to keep small.
+ */
+function LoadProgress() {
+  const { progress, errors } = useProgress()
+
+  useEffect(() => {
+    setLoadPart('assets', progress / 100)
+  }, [progress])
+
+  useEffect(() => {
+    if (errors.length > 0) failLoader()
+  }, [errors])
+
+  return null
+}
+
+/**
+ * Ready means drawn, not mounted. Compiling the shaders up front moves the
+ * first-frame hitch to where it cannot be seen, and two rendered frames past
+ * that is the earliest moment the world is genuinely on screen rather than
+ * merely about to be.
+ */
+function WorldReady() {
+  const gl = useThree((s) => s.gl)
+  const scene = useThree((s) => s.scene)
+  const camera = useThree((s) => s.camera)
+  const frames = useRef(0)
+
+  useEffect(() => {
+    gl.compile(scene, camera)
+  }, [gl, scene, camera])
+
+  useFrame(() => {
+    if (frames.current > 2) return
+    frames.current += 1
+    if (frames.current === 2) setLoadPart('world', 1)
+  })
+
+  return null
+}
+
 export default function Scene({ frameloop }: { frameloop: 'always' | 'never' }) {
   // GodRays needs the sun mesh, and the sun mesh only exists after the first
   // commit — so the chain waits a frame for it rather than guessing
   const [sun, setSun] = useState<Mesh | null>(null)
 
   return (
-    <Canvas
+    <>
+      <LoadProgress />
+      <Canvas
       frameloop={frameloop}
       dpr={[1, 1.75]}
       gl={{
@@ -69,11 +120,13 @@ export default function Scene({ frameloop }: { frameloop: 'always' | 'never' }) 
         </Environment>
         <Plane />
         <Preload all />
+        <WorldReady />
       </Suspense>
 
       <CloudField />
 
       <Effects sun={sun} />
-    </Canvas>
+      </Canvas>
+    </>
   )
 }

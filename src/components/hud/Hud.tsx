@@ -53,6 +53,7 @@ export function Hud() {
   const track = getTrack()
   const phase = track?.phases[phaseIndex]
 
+  const phaseEl = useRef<HTMLDivElement>(null)
   const alt = useRef<HTMLSpanElement>(null)
   const gs = useRef<HTMLSpanElement>(null)
   const hdg = useRef<HTMLSpanElement>(null)
@@ -113,15 +114,50 @@ export function Hud() {
     }
   }, [])
 
+  /**
+   * While the loader is flying, the instruments read *it*.
+   *
+   * The takeoff happens before the page is scrollable, so none of these numbers
+   * can be a function of progress yet — the loader writes what it is flying
+   * into `state.loader` and this prefers it for as long as it is active. The
+   * handoff has no jump because the profile's first altitude and speed keys are
+   * the values the loader arrives at (see `flight/profile.ts`).
+   */
   useEffect(() => {
     let lastWaypoint = -2
     let lastSection = -1
+    let lastPhase = ''
+    let lastCallout = ''
     let flickering = false
 
     const write = () => {
-      if (alt.current) alt.current.textContent = pad(state.altitude, 5)
-      if (gs.current) gs.current.textContent = pad(state.speed, 3)
-      if (hdg.current) hdg.current.textContent = pad(state.heading % 360, 3)
+      const loader = state.loader
+      const flying = loader.active
+
+      if (alt.current) alt.current.textContent = pad(flying ? loader.altitude : state.altitude, 5)
+      if (gs.current) gs.current.textContent = pad(flying ? loader.speed : state.speed, 3)
+      if (hdg.current) {
+        hdg.current.textContent = pad((flying ? loader.heading : state.heading) % 360, 3)
+      }
+
+      if (phaseEl.current) {
+        const label = flying
+          ? loader.phaseLabel
+          : (getTrack()?.phases[state.phaseIndex]?.label ?? 'CLIMB')
+        if (label !== lastPhase) {
+          lastPhase = label
+          phaseEl.current.textContent = label
+        }
+      }
+
+      if (flying && callout.current) {
+        if (loader.callout !== lastCallout) {
+          lastCallout = loader.callout
+          lastWaypoint = -2 // so the first real waypoint still writes itself
+          callout.current.textContent = loader.callout ? `> ${loader.callout}` : ''
+          callout.current.dataset.active = loader.callout ? 'true' : ''
+        }
+      }
       if (throttle.current) {
         throttle.current.style.transform = `scaleX(${(0.04 + state.throttle * 0.96).toFixed(3)})`
       }
@@ -151,7 +187,7 @@ export function Hud() {
         index.current.textContent = `${pad(lastSection + 1, 2)} / ${SECTION_LABELS[id]}`
       }
 
-      if (state.waypointIndex !== lastWaypoint && callout.current) {
+      if (!flying && state.waypointIndex !== lastWaypoint && callout.current) {
         lastWaypoint = state.waypointIndex
         const waypoint =
           state.waypointIndex >= 0 ? getTrack()?.waypoints[state.waypointIndex] : null
@@ -192,7 +228,9 @@ export function Hud() {
 
       <div className="hud__stack hud__stack--bottom">
         <div className="hud__callout" ref={callout} />
-        <div className="hud__phase">{phase?.label ?? 'ON BLOCKS'}</div>
+        <div className="hud__phase" ref={phaseEl}>
+          {phase?.label ?? 'ON BLOCKS'}
+        </div>
         <div className="hud__index" ref={index}>
           {pad(1, 2)} / {SECTION_LABELS[SECTION_IDS[0]]}
         </div>

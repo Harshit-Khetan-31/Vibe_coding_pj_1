@@ -1,0 +1,107 @@
+/* The takeoff overlay.
+
+   It sits above the whole page — the world, the sections, the rail, the
+   masthead — because until it is gone none of them are ready to be looked at.
+   The one exception is the HUD: the instruments are part of the loader's
+   picture, not something it covers, so they are lifted over the canvas for as
+   long as it is there and drop back to their own layer afterwards. */
+
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  opacity: 1;
+  /* the canvas is scenery and the two readouts below opt back in; nothing here
+     should ever swallow a click meant for the page underneath */
+  pointer-events: none;
+}
+
+.loader__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* With no runway to draw — reduced motion, or no 2D context — the overlay is
+   just the counter on the site's own black, so it paints that itself. The
+   drawing path deliberately does not: its canvas fades from black to nothing as
+   the aircraft climbs, and an opaque root behind it would hide the real sky
+   coming up underneath. */
+.loader[data-plain='true'] {
+  background: var(--bg);
+}
+
+/* The instruments belong on top of the runway, not under it. */
+body[data-loader] .hud {
+  z-index: 71;
+}
+
+.loader__count {
+  position: absolute;
+  left: 50%;
+  bottom: 11vh;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  transition: opacity 0.4s ease;
+}
+
+.loader__hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(11vh - 26px);
+  transform: translateX(-50%);
+  font-size: 0.6875rem;
+  line-height: 1;
+  color: var(--dim);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.loader__hint[data-on='true'] {
+  opacity: 0.8;
+}
+
+/* ---- what the rest of the page does while this is on screen -------------- */
+
+/* Native scrolling is locked here; Lenis is stopped in useLenis. Both are
+   released at the handoff, which is also when the page becomes worth
+   scrolling. */
+body[data-loader='active'] {
+  overflow: hidden;
+}
+
+/* The document element is what actually scrolls, so it is what actually has to
+   be stopped; the rule on the body alone is not enough in every browser. */
+html:has(body[data-loader='active']) {
+  overflow: hidden;
+}
+
+/* The rail and the masthead stay out of the loader's picture and dissolve back
+   in together at the handoff. The masthead brings its own dissolve (see
+   Header.css); the rail only ever needed a fade, so it gets one here rather
+   than growing a second state of its own. */
+.nav {
+  transition: opacity 900ms var(--ease-ui);
+}
+
+body[data-loader='active'] .nav {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader,
+  .loader__count,
+  .loader__hint,
+  .nav {
+    transition-duration: 200ms;
+  }
+}

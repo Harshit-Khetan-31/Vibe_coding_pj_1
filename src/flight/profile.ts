@@ -37,6 +37,19 @@ export const TEXT_SIDE: Record<SectionId, TextSide> = {
   contact: 'left',
 }
 
+/**
+ * What the compass reads when the aircraft is pointing at the viewer.
+ *
+ * The flight starts on runway 11, so the instruments open on 110 and the Intro
+ * pose — nose at the camera, which is `HEADING_AT_CAMERA` = 180 degrees in the
+ * 3D layer's own frame — has to read the same thing, or the number would jump
+ * the moment the loader handed over. The offset is applied once, in
+ * `store.setAttitude`, so there is exactly one place where the model's frame
+ * becomes a compass rose.
+ */
+export const RUNWAY_HEADING = 110
+export const HEADING_OFFSET = RUNWAY_HEADING - 180
+
 /** A point in layout space: section `s`, fraction `u` down it. */
 export type Anchor = { s: number; u: number }
 
@@ -62,11 +75,16 @@ export type ValueKey = { at: Anchor; v: number }
 
 export type WaypointDef = { at: Anchor; code: string; label: string }
 
-/** Phase boundaries are anchors too, so the flight and the DOM can never drift. */
+/**
+ * Phase boundaries are anchors too, so the flight and the DOM can never drift.
+ *
+ * ON BLOCKS and ROTATION are no longer here: the loader flies them before the
+ * page is scrollable at all, and by the time the visitor has a scrollbar the
+ * aircraft is already climbing away from the runway. Their ids are kept in
+ * `PhaseId` because the loader still reports those labels to the HUD.
+ */
 export const PHASES: PhaseDef[] = [
-  { id: 'ON_BLOCKS', label: 'ON BLOCKS', section: 0, from: { s: 0, u: 0.18 }, to: { s: 0, u: 0.32 } },
-  { id: 'ROTATION', label: 'ROTATION', section: 0, from: { s: 0, u: 0.32 }, to: { s: 0, u: 0.5 } },
-  { id: 'CLIMB', label: 'CLIMB', section: 0, from: { s: 0, u: 0.5 }, to: { s: 1, u: 0.02 } },
+  { id: 'CLIMB', label: 'CLIMB', section: 0, from: { s: 0, u: 0 }, to: { s: 1, u: 0.02 } },
   { id: 'CRUISE', label: 'CRUISE', section: 1, from: { s: 1, u: 0.02 }, to: { s: 2, u: 0.06 } },
   { id: 'TURBULENCE', label: 'TURBULENCE', section: 2, from: { s: 2, u: 0.06 }, to: { s: 3, u: 0.04 } },
   { id: 'DESCENT', label: 'DESCENT', section: 3, from: { s: 3, u: 0.04 }, to: { s: 4, u: 0.2 } },
@@ -74,7 +92,6 @@ export const PHASES: PhaseDef[] = [
 ]
 
 export const WAYPOINTS: WaypointDef[] = [
-  { at: { s: 0, u: 0.18 }, code: 'RWY', label: 'ON BLOCKS' },
   { at: { s: 1, u: 0.03 }, code: 'WP01', label: 'WORK' },
   { at: { s: 2, u: 0.06 }, code: 'WP02', label: 'EXPERIMENTS' },
   { at: { s: 3, u: 0.05 }, code: 'WP03', label: 'ABOUT' },
@@ -84,9 +101,9 @@ export const WAYPOINTS: WaypointDef[] = [
 
 /** Altitude, feet. */
 export const ALTITUDE_KEYS: ValueKey[] = [
-  { at: { s: 0, u: 0.18 }, v: 0 },
-  { at: { s: 0, u: 0.32 }, v: 0 },
-  { at: { s: 0, u: 0.5 }, v: 140 },
+  // the loader hands over at 1480 feet and 152 knots, so the scroll picks the
+  // flight up there rather than back on the ground
+  { at: { s: 0, u: 0 }, v: 1480 },
   { at: { s: 0, u: 0.86 }, v: 14800 },
   { at: { s: 1, u: 0.16 }, v: 33000 },
   { at: { s: 2, u: 0.06 }, v: 36000 },
@@ -100,9 +117,7 @@ export const ALTITUDE_KEYS: ValueKey[] = [
 
 /** Ground speed, knots. */
 export const SPEED_KEYS: ValueKey[] = [
-  { at: { s: 0, u: 0.18 }, v: 0 },
-  { at: { s: 0, u: 0.32 }, v: 36 },
-  { at: { s: 0, u: 0.5 }, v: 152 },
+  { at: { s: 0, u: 0 }, v: 152 },
   { at: { s: 1, u: 0.02 }, v: 322 },
   { at: { s: 1, u: 0.42 }, v: 468 },
   { at: { s: 2, u: 0.06 }, v: 470 },

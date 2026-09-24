@@ -306,6 +306,23 @@ function stripFusedBlades(fuselage: Mesh, spinner: Spinner, span: number): numbe
 /** Vite's dev flag, reached without pulling its ambient types into tsconfig. */
 const DEV = (import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV === true
 
+/* ---- the arrival ---------------------------------------------------------
+ *
+ * The loader's takeoff ends with the real aircraft flying into the frame. It
+ * starts below and behind the camera with its nose away — the pose you would be
+ * left in having just watched it leave the runway over your head — and blends
+ * onto the ordinary Intro pose across `state.entry`.
+ *
+ * What is blended is the *target*, never the spring: the springs keep chasing
+ * as they do for everything else, which is why the arrival cannot snap however
+ * fast the loader was skipped through.
+ */
+
+/** How far below the frame the aircraft starts, in half-viewports. */
+const ENTRY_BELOW = 2.4
+/** And the bank it is still holding off the runway. */
+const ENTRY_BANK = 0.2
+
 let loggedSpinner = false
 
 /**
@@ -459,7 +476,7 @@ function NavLights({
   wingZ: number
   tailZ: number
 }) {
-  const texture = useMemo(lightTexture, [])
+  const texture = useMemo(() => lightTexture(), [])
   useEffect(() => () => texture.dispose(), [texture])
 
   const colors = useMemo(
@@ -533,7 +550,8 @@ export function Plane() {
     z: spring(-PLANE_DEPTH),
     roll: spring(0),
     pitch: spring(0),
-    heading: spring(HEADING_AT_CAMERA),
+    // an arrival starts nose-away; everything else starts facing the viewer
+    heading: spring(state.entry < 1 ? HEADING_AWAY : HEADING_AT_CAMERA),
   })
   /**
    * The reversal gate, on the scroll itself: +1 flying toward the viewer,
@@ -606,12 +624,23 @@ export function Plane() {
 
     // the finale pulls it onto the centreline before it turns at the camera
     const targetX = routeX * halfW * (1 - turning) + wanderX * (1 - turning)
-    const targetY = routeY * halfH * (1 - turning) + (bob + wanderY) * (1 - turning)
-    const targetZ = -PLANE_DEPTH + (PLANE_DEPTH + FINALE_PASS_Z) * approach
+    let targetY = routeY * halfH * (1 - turning) + (bob + wanderY) * (1 - turning)
+    let targetZ = -PLANE_DEPTH + (PLANE_DEPTH + FINALE_PASS_Z) * approach
+
+    /* the arrival ----------------------------------------------------------- */
+    const entry = smoothstep01(state.entry)
+    if (entry < 1) {
+      targetY = targetY + (-halfH * ENTRY_BELOW - targetY) * (1 - entry)
+      targetZ = targetZ + (FINALE_PASS_Z - targetZ) * (1 - entry)
+    }
 
     if (!settled.current) {
       snapSpring(s.x, targetX)
       snapSpring(s.y, targetY)
+      // the arrival starts behind the camera, which is nowhere near the depth
+      // the spring was built at, so the first frame has to start from the pose
+      // rather than fly to it
+      snapSpring(s.z, targetZ)
       settled.current = true
     }
 
@@ -662,6 +691,11 @@ export function Plane() {
     // the aircraft is receding, so it has to be pointing away instead
     const finaleHeading = nearestAngle(psi, direction > 0 ? HEADING_AT_CAMERA : HEADING_AWAY)
     headingTarget += (finaleHeading - headingTarget) * turning
+    // climbing away from the viewer, so the nose is pointing away
+    if (entry < 1) {
+      const away = nearestAngle(psi, HEADING_AWAY)
+      headingTarget += (away - headingTarget) * (1 - entry)
+    }
     const heading = stepSpring(s.heading, headingTarget, OMEGA_HEADING, dt)
 
     /* bank ------------------------------------------------------------------ */
@@ -680,6 +714,7 @@ export function Plane() {
     const manoeuvring = clamp(Math.abs(s.heading.velocity) * 0.5, 0, 1)
     rollTarget += -state.pointerX * ROLL_PER_POINTER * (1 - manoeuvring) * (1 - turning)
     rollTarget += noise(t, 3.1) * WANDER_ROLL * wander * (1 - turning)
+    if (entry < 1) rollTarget += (ENTRY_BANK - rollTarget) * (1 - entry)
     const roll = stepSpring(s.roll, rollTarget, OMEGA_ROLL, dt)
 
     /* pitch: nose up on fast scroll, then settles --------------------------- */

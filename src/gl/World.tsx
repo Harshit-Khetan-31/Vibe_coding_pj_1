@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { measureLayout } from '../flight/layout'
 import { buildTrack } from '../flight/track'
-import { setPointer, setTrack } from '../flight/store'
+import { setLoadPart, setPointer, setTrack } from '../flight/store'
 import { SkyFallback } from './SkyFallback'
 import { hasWebGL } from './webgl'
 import './World.css'
@@ -20,10 +20,22 @@ import './World.css'
  * fallback included, so the HUD works with no WebGL at all.
  */
 
-const Scene = lazy(() => import('./Scene'))
+/**
+ * The Scene chunk is a quarter of the loader's progress bar, so the import is
+ * where that quarter is reported from — the promise resolving is exactly the
+ * event being counted, and nothing has to guess at it from outside.
+ */
+const Scene = lazy(() =>
+  import('./Scene').then((module) => {
+    setLoadPart('chunk', 1)
+    return module
+  }),
+)
 
 export function World() {
-  const [enabled, setEnabled] = useState(false)
+  // null while the capability check has not run yet: "we don't know" and "no"
+  // are different answers, and the loader's counter depends on the difference
+  const [enabled, setEnabled] = useState<boolean | null>(null)
   const [frameloop, setFrameloop] = useState<'always' | 'never'>('always')
 
   /* track: measured from the DOM, rebuilt only when the layout really moves -- */
@@ -88,6 +100,20 @@ export function World() {
     }
     window.addEventListener('pointermove', onMove, { passive: true })
     return () => window.removeEventListener('pointermove', onMove)
+  }, [enabled])
+
+  /**
+   * No WebGL, or stillness asked for: there is no chunk to fetch, no glTF to
+   * decode and no first frame to wait on, so the three parts of the loader's
+   * count that belong to the world are satisfied at once. Without this the
+   * counter would sit at 10% forever on exactly the machines least able to
+   * wait for it.
+   */
+  useEffect(() => {
+    if (enabled !== false) return
+    setLoadPart('chunk', 1)
+    setLoadPart('assets', 1)
+    setLoadPart('world', 1)
   }, [enabled])
 
   if (!enabled) return <SkyFallback />
