@@ -28,8 +28,16 @@ function localTime(timeZone: string): string {
 export function Contact({ number }: { index: number; number: string }) {
   const revealed = useContactReveal()
   const [copied, setCopied] = useState(false)
+  // A header jump lands past the propeller close-up that normally cues the
+  // reveal, so the jump asks for it to be completed outright. `settled` is the
+  // forced state; `instant` kills the transition for the frame it flips in, so
+  // the text is simply already there rather than animating in behind the
+  // arriving scroll. See CONTACT_JUMP_EVENT in Header.tsx.
+  const [settled, setSettled] = useState(false)
+  const [instant, setInstant] = useState(false)
   const [time, setTime] = useState(() => localTime(contact.timeZone))
   const copyTimeout = useRef<ReturnType<typeof setTimeout>>()
+  const root = useRef<HTMLElement>(null)
 
   useEffect(() => {
     const id = setInterval(() => setTime(localTime(contact.timeZone)), 30_000)
@@ -37,6 +45,47 @@ export function Contact({ number }: { index: number; number: string }) {
   }, [])
 
   useEffect(() => () => clearTimeout(copyTimeout.current), [])
+
+  useEffect(() => {
+    const onJump = () => {
+      setSettled(true)
+      setInstant(true)
+      // Two frames: one for React to paint the snapped state with transitions
+      // off, one before turning them back on — a single frame can land in the
+      // same style recalculation and animate after all.
+      requestAnimationFrame(() => requestAnimationFrame(() => setInstant(false)))
+    }
+    window.addEventListener('contact:jump', onJump)
+    return () => window.removeEventListener('contact:jump', onJump)
+  }, [])
+
+  /**
+   * Hand the reveal back. While CONTACT is on screen the forced state has to
+   * hold — the propeller's own signal only turns on during the close-up, and
+   * dropping the force before then would fade out text the visitor is reading.
+   * Once the section has left the viewport there is nothing to protect, so it
+   * is released and the reveal plays properly the next time it is scrolled to.
+   */
+  useEffect(() => {
+    if (!settled) return
+    const el = root.current
+    if (!el) return
+    // Only a leave counts. An observer reports its first state as soon as it
+    // is attached, and the jump is fired from the top of the page where
+    // CONTACT is nowhere near the viewport — releasing on that first callback
+    // would undo the force in the same tick it was asked for, which is exactly
+    // what left the arrival half-faded.
+    let seen = false
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) seen = true
+        else if (seen) setSettled(false)
+      },
+      { threshold: 0 },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [settled])
 
   const copyEmail = async () => {
     try {
@@ -53,15 +102,19 @@ export function Contact({ number }: { index: number; number: string }) {
   return (
     <section
       id="contact"
+      ref={root}
       className="section section--contact"
       data-side={TEXT_SIDE.contact}
-      data-contact-revealed={revealed ? 'true' : 'false'}
+      data-contact-revealed={revealed || settled ? 'true' : 'false'}
+      data-contact-instant={instant ? 'true' : 'false'}
       aria-label="Contact"
     >
       <div className="section__inner contact__inner">
         <div className="contact-rise" style={{ '--reveal-delay': '0ms' } as React.CSSProperties}>
           <div className="section__eyebrow">{number}</div>
-          <h2 className="section__title contact__heading">{contact.heading}</h2>
+          <h2 className="section__title contact__heading" tabIndex={-1}>
+            {contact.heading}
+          </h2>
         </div>
         <div className="contact-rise" style={{ '--reveal-delay': '80ms' } as React.CSSProperties}>
           <button type="button" className="contact__email" onClick={copyEmail}>

@@ -9,8 +9,56 @@
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-mono);
   text-transform: uppercase;
-  color: var(--dim);
+  color: var(--hud-dim);
   font-variant-numeric: tabular-nums;
+
+  /* The palette the readouts are drawn from, as one switchable set. Defaults
+     are the off-white pair used for the whole flight; `[data-ink]` below swaps
+     in CONTACT's tokens. Nothing here is a new colour — the finale values are
+     the same ones `Contact.css` reads.
+
+     Custom properties do not transition, but the declarations that read them
+     do: changing `--hud-fg` recomputes `color`, and `color` is animatable. So
+     the crossfade lives on the longhands, listed on every rule that sets one.
+
+     `--hud-key` and `--hud-val` are the opacity multipliers rather than more
+     colours. Over the night sky a 45% key is a deliberate hierarchy; over the
+     finale it is illegible, so the fade opens them up as well as re-inking
+     them, and opacity crossfades on the same 400ms. */
+  --hud-fg: var(--fg);
+  --hud-dim: var(--dim);
+  --hud-accent: var(--accent);
+  --hud-line: var(--line-strong);
+  --hud-halo: none;
+  --hud-key: 0.45;
+  --hud-val: 0.85;
+  --hud-index: 0.6;
+
+  text-shadow: var(--hud-halo);
+  transition:
+    color var(--dur-hud) var(--ease-ui),
+    text-shadow var(--dur-hud) var(--ease-ui);
+}
+
+.hud[data-ink='true'] {
+  --hud-fg: var(--ink);
+  --hud-dim: var(--ink-dim);
+  --hud-accent: var(--accent-ink);
+  --hud-line: var(--ink-line-strong);
+  /* The tight halo, laid down twice. The instruments are the smallest type on
+     the page and the only text that sits over the top of the frame, where the
+     finale sky is still half-dark — one pass left the 10px keys at ~4.2:1.
+     Listing the token twice stacks it with itself, which buys the density
+     without introducing a single new value. */
+  --hud-halo: var(--text-halo-tight), var(--text-halo-tight);
+  /* Full strength, all three. Over the night sky the hierarchy is carried by
+     alpha, which is cheap and looks right there; over the finale alpha is the
+     one thing that cannot be afforded — a 72% key measured 2.5:1 because the
+     sky shows straight through the glyph. Ink dropped to ink-dim carries the
+     same hierarchy at full opacity, which is how CONTACT does it. */
+  --hud-key: 1;
+  --hud-val: 1;
+  --hud-index: 1;
 }
 
 .hud__stack {
@@ -22,7 +70,8 @@
 }
 
 .hud__stack--top {
-  top: var(--space-6);
+  /* clears the header bar, so the instruments never share a row with it */
+  top: calc(var(--header-h) + var(--space-4));
 }
 
 .hud__stack--bottom {
@@ -37,13 +86,17 @@
 }
 
 .hud__key {
-  opacity: 0.45;
+  opacity: var(--hud-key);
   font-size: 0.625rem;
+  transition: opacity var(--dur-hud) var(--ease-ui);
 }
 
 .hud__val {
-  color: var(--fg);
-  opacity: 0.85;
+  color: var(--hud-fg);
+  opacity: var(--hud-val);
+  transition:
+    color var(--dur-hud) var(--ease-ui),
+    opacity var(--dur-hud) var(--ease-ui);
 }
 
 .hud__bar {
@@ -51,35 +104,44 @@
   width: 44px;
   height: 1px;
   margin-top: 3px;
-  background: var(--line-strong);
+  background: var(--hud-line);
+  transition: background var(--dur-hud) var(--ease-ui);
 }
 
 .hud__bar-fill {
   display: block;
   height: 100%;
-  background: var(--fg);
+  background: var(--hud-fg);
   opacity: 0.7;
   transform-origin: left center;
+  /* the frame loop writes scaleX here every frame, so only the colour may
+     carry a transition — a transition on transform would fight it */
+  transition: background var(--dur-hud) var(--ease-ui);
   transform: scaleX(0.04);
 }
 
 .hud__phase {
-  color: var(--fg);
-  opacity: 0.85;
+  color: var(--hud-fg);
+  opacity: var(--hud-val);
+  transition:
+    color var(--dur-hud) var(--ease-ui),
+    opacity var(--dur-hud) var(--ease-ui);
 }
 
 .hud__index {
-  opacity: 0.6;
+  opacity: var(--hud-index);
+  transition: opacity var(--dur-hud) var(--ease-ui);
 }
 
 .hud__callout {
   min-height: 1.1em;
-  color: var(--accent);
+  color: var(--hud-accent);
   opacity: 0;
   transform: translateX(-4px);
   transition:
     opacity var(--dur-fast) var(--ease-ui),
-    transform var(--dur-fast) var(--ease-ui);
+    transform var(--dur-fast) var(--ease-ui),
+    color var(--dur-hud) var(--ease-ui);
 }
 
 .hud__callout[data-active='true'] {
@@ -112,5 +174,12 @@
 @media (prefers-reduced-motion: reduce) {
   .hud {
     opacity: 1 !important;
+  }
+
+  /* The ink swap is a legibility change, not decoration, so it still happens —
+     it just happens at once rather than fading. */
+  .hud,
+  .hud * {
+    transition: none;
   }
 }

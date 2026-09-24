@@ -1,7 +1,14 @@
 import { useEffect, useRef } from 'react'
 import { profile } from '../content/profile'
-import { revealSection, state, subscribeFrame, subscribeGeometry } from '../flight/store'
+import {
+  isReducedMotion,
+  revealSection,
+  state,
+  subscribeFrame,
+  subscribeGeometry,
+} from '../flight/store'
 import { useActiveSection } from '../hooks/useActiveSection'
+import { getLenis } from '../hooks/useLenis'
 import './Header.css'
 
 /**
@@ -30,6 +37,44 @@ const NOISE_FLOOR = 0.05
 
 const sectionIds = profile.sections.map((s) => s.id)
 
+/* ---- the CONTACT jump ------------------------------------------------- */
+
+/** Where the headline should come to rest, as a fraction of the viewport. */
+const CONTACT_HEADLINE_TOP = 0.15
+/** Long enough to read as travel to the end of the flight, not a cut. */
+const CONTACT_JUMP_SECONDS = 1.4
+/** Cubic in-out: leaves and arrives slowly, at speed in the middle. */
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+/** Contact.tsx listens for this and force-completes its reveal. */
+const CONTACT_JUMP_EVENT = 'contact:jump'
+
+/**
+ * How far past the top of CONTACT the scroll has to land for the headline to
+ * sit `CONTACT_HEADLINE_TOP` down the viewport.
+ *
+ * `offsetTop` rather than a rect: the headline sits inside `.contact-rise`,
+ * which is translated 60px down until the reveal has played, and a rect would
+ * fold that transform into the measurement and land the jump 60px short. The
+ * chain has to be walked — `.section__inner` is positioned too, so it, not the
+ * section, is the headline's offset parent, and a single `offsetTop` would
+ * measure from the wrong box and land the jump most of a screen short.
+ *
+ * The browser clamps the result at the end of the document, which is the point
+ * of the scroll runway CONTACT reserves: the jump lands the headline at 15vh
+ * whenever there is room below it to do so.
+ */
+function contactOffset(section: HTMLElement): number {
+  const heading = section.querySelector<HTMLElement>('.contact__heading')
+  if (!heading) return 0
+  let top = 0
+  let node: HTMLElement | null = heading
+  while (node && node !== section) {
+    top += node.offsetTop
+    node = node.offsetParent as HTMLElement | null
+  }
+  return top - window.innerHeight * CONTACT_HEADLINE_TOP
+}
+
 // Everything except INTRO (the wordmark goes there) and CONTACT (the pill does).
 const links = profile.sections
   .map((s, index) => ({ ...s, index }))
@@ -45,6 +90,7 @@ const signed = (value: number, digits: number, pad: number) => {
 export function Header() {
   const activeId = useActiveSection(sectionIds)
   const root = useRef<HTMLElement>(null)
+  const forceHide = useRef<(() => void) | null>(null)
   const bank = useRef<HTMLSpanElement>(null)
   const drift = useRef<HTMLSpanElement>(null)
 
@@ -78,6 +124,7 @@ export function Header() {
 
     let hidden = false
     let direction = 0 // -1 up, +1 down, 0 undecided
+    let y = state.progress * limit
     let anchor = state.progress * limit // where the current run of travel began
     let previous = anchor
     let focused = false
@@ -91,7 +138,7 @@ export function Header() {
     }
 
     const frame = () => {
-      const y = state.progress * limit
+      y = state.progress * limit
       const delta = y - previous
       previous = y
 
@@ -118,6 +165,21 @@ export function Header() {
       else if (travel < -SHOW_AFTER) set(false)
     }
 
+    /**
+     * The CONTACT jump hides the bar itself rather than leaving it to the
+     * scroll. Travel usually does the job, but not when the jump is instant
+     * (reduced motion) or starts from CONTACT, where there is barely any
+     * travel to measure — and setting `data-hidden` from outside would leave
+     * `hidden` lying about the DOM, so the next upward scroll could not bring
+     * the bar back. Re-anchoring keeps the arrival from counting as a reversal.
+     */
+    forceHide.current = () => {
+      anchor = y
+      previous = y
+      direction = 0
+      set(true)
+    }
+
     const onFocusIn = () => {
       focused = true
       frame()
@@ -141,10 +203,55 @@ export function Header() {
       window.removeEventListener('resize', measure)
       unsubscribeGeometry()
       unsubscribeFrame()
+      forceHide.current = null
     }
   }, [])
 
   const go = (index: number) => () => revealSection(index)
+
+  /**
+   * "Get in touch" is the one link that has somewhere specific to arrive: the
+   * end of the flight, with the headline high in the frame rather than the
+   * section's top edge pinned under the bar. So it is driven rather than left
+   * to the browser's anchor jump — eased over `CONTACT_JUMP_SECONDS`, with the
+   * reveal force-completed, the bar sent away and focus put on the headline so
+   * the keyboard ends up where the eye does.
+   */
+  const goContact = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return
+    event.preventDefault()
+
+    const section = document.getElementById('contact')
+    if (!section) return
+
+    revealSection(contact)
+    window.dispatchEvent(new Event(CONTACT_JUMP_EVENT))
+
+    const arrive = () => {
+      forceHide.current?.()
+      // preventScroll: the browser would otherwise scroll the heading into
+      // view its own way and undo the landing we just eased into.
+      document
+        .querySelector<HTMLElement>('#contact .contact__heading')
+        ?.focus({ preventScroll: true })
+    }
+
+    const lenis = getLenis()
+    if (isReducedMotion() || !lenis) {
+      const top = section.getBoundingClientRect().top + window.scrollY + contactOffset(section)
+      window.scrollTo({ top, behavior: 'auto' })
+      arrive()
+      return
+    }
+
+    forceHide.current?.()
+    lenis.scrollTo('#contact', {
+      offset: contactOffset(section),
+      duration: CONTACT_JUMP_SECONDS,
+      easing: easeInOut,
+      onComplete: arrive,
+    })
+  }
 
   return (
     <header className="header" ref={root} data-hidden="false">
@@ -181,7 +288,7 @@ export function Header() {
           </span>
         </div>
 
-        <a className="header__cta" href="#contact" onClick={go(contact)}>
+        <a className="header__cta" href="#contact" onClick={goContact}>
           Get in touch
         </a>
       </div>

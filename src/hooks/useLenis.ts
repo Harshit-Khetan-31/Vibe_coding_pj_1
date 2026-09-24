@@ -7,6 +7,18 @@ import { resetClock, setReducedMotion, setScroll, tick } from '../flight/store'
  * to the flight store; the store resolves a frame; subscribers write the DOM.
  * Touch and reduced motion skip Lenis and read native scroll instead.
  */
+/**
+ * The live instance, for the one caller that has to *drive* the scroll rather
+ * than read it (Header's "Get in touch" jump). Null under reduced motion and
+ * on touch, where Lenis is never constructed and native scrolling is in
+ * charge — callers fall back to `window.scrollTo`.
+ */
+let instance: Lenis | null = null
+
+export function getLenis(): Lenis | null {
+  return instance
+}
+
 export function useLenis() {
   useEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -35,6 +47,7 @@ export function useLenis() {
       })
       setScroll(window.scrollY, nativeLimit())
     }
+    instance = lenis
 
     let frame = 0
     const loop = (time: number) => {
@@ -58,6 +71,7 @@ export function useLenis() {
         window.removeEventListener('resize', onScroll)
       }
       lenis?.destroy()
+      instance = null
       resetClock()
     }
   }, [])

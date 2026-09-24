@@ -15,6 +15,61 @@
   justify-content: flex-end;
   gap: var(--space-16);
   padding-bottom: var(--space-16);
+
+  /* Ink, not off-white. Everything below inherits it, and the shared rules in
+     Section.css (`.section__eyebrow`, `.section__title`) pick it up too because
+     the tokens they read are re-pointed here rather than overridden per rule —
+     one place to change, no selector duplication.
+
+     `color` has to be set as well as the tokens: the page's text colour is
+     inherited from `body`, where `--fg` already resolved to off-white, so
+     re-pointing the variable alone would never reach it. */
+  color: var(--ink);
+  --fg: var(--ink);
+  --dim: var(--ink-dim);
+  --line: var(--ink-line);
+  --line-strong: var(--ink-line-strong);
+  --text-scrim: var(--text-halo);
+  --text-scrim-strong: var(--text-halo);
+  --accent: var(--accent-ink);
+}
+
+/* The readability band inverts with the type. Everywhere else it is a dark
+   veil that buys light text its contrast; under ink it would do the opposite,
+   dimming the one thing the glyphs are read against. Same geometry as
+   Section.css — full-width, no edge — just carrying light instead of dark.
+
+   It also carries more weight here than elsewhere, because "the bright sky"
+   is only half the story: the finale is a close-up, so for much of it the
+   backdrop behind this text is the aircraft itself. Measured over the frame,
+   the sky behind CONTACT runs to ~0.70 relative luminance and the shadowed
+   fuselage down to ~0.09 — a range no single text colour spans on its own.
+   The band is what puts a floor under the dark end; the halo does the rest. */
+.section.section--contact::before {
+  background: linear-gradient(
+    to right,
+    rgb(255 244 232 / 0.62) 0%,
+    rgb(255 244 232 / 0.48) 38%,
+    rgb(255 244 232 / 0.2) 68%,
+    rgb(255 244 232 / 0.06) 100%
+  );
+  /* Section.css fades its band out over the bottom quarter of the box so it
+     never meets the next section. CONTACT has no next section — it ends the
+     document — and that fade lands exactly on the footer, which is why the
+     credit line was the one thing the band could not reach. Fading in at the
+     top only keeps the one edge that still has something to hide. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 100%);
+}
+
+.section.section--contact[data-side='right']::before {
+  background: linear-gradient(
+    to left,
+    rgb(255 244 232 / 0.62) 0%,
+    rgb(255 244 232 / 0.48) 38%,
+    rgb(255 244 232 / 0.2) 68%,
+    rgb(255 244 232 / 0.06) 100%
+  );
 }
 
 /* The reveal: rises into place over the spinning propeller as it fills the
@@ -35,6 +90,15 @@
   opacity: 1;
 }
 
+/* A jump from the header lands past the moment the propeller would have cued
+   this, so the reveal is force-completed rather than played: killing the
+   transition for the frame the state flips in is what stops the visitor
+   arriving on half-faded text. Contact.tsx drops the attribute again once the
+   snap has been painted, so ordinary scrolling still animates. */
+.section--contact[data-contact-instant='true'] .contact-rise {
+  transition: none;
+}
+
 .section__inner > .contact-rise:nth-child(2) {
   margin-top: var(--space-4);
 }
@@ -48,6 +112,33 @@
     transform: none;
     transition: opacity 0.5s ease;
   }
+}
+
+/* The jump moves focus here so the keyboard lands where the eye does. It is
+   a heading, not a control — a focus ring on it would read as a UI error, and
+   there is nothing to operate — so the ring is dropped. Nothing is lost for
+   keyboard users: focus is only ever placed here programmatically, and the
+   next Tab goes to the email button, which keeps its own ring. */
+#contact .contact__heading:focus,
+#contact .contact__heading:focus-visible {
+  outline: none;
+}
+
+/* Everything at mono scale takes the tight halo. Grouped rather than repeated
+   per rule so there is one list to add to when something small joins CONTACT. */
+.section--contact .section__eyebrow,
+.contact__socials a,
+.contact__clock,
+.contact__footer span,
+.contact__email .contact__copied {
+  text-shadow: var(--text-halo-tight);
+}
+
+/* The section number is the smallest type in CONTACT and sits highest, where
+   the propeller hub is darkest behind it. Ink rather than ink-dim: at that
+   size even the tight halo cannot carry the dimmed tone to 4.5:1. */
+.section--contact .section__eyebrow {
+  color: var(--ink);
 }
 
 .contact__heading {
@@ -79,9 +170,12 @@
   border-color: var(--fg);
 }
 
-.contact__copied {
+/* Selected through its parent to outrank `.mono`, which also sets a colour and
+   is injected after this file — at equal specificity the confirmation would
+   otherwise come out the same dim tone as the clock beside it and stop reading
+   as a confirmation at all. */
+.contact__email .contact__copied {
   color: var(--accent);
-  text-shadow: none;
   min-width: 4.5em;
 }
 
@@ -99,19 +193,24 @@
   font-size: var(--text-sm);
   letter-spacing: var(--tracking-mono);
   text-transform: uppercase;
-  color: var(--dim);
-  text-shadow: var(--text-scrim);
-  transition: color var(--dur-fast) var(--ease-ui);
+  color: var(--ink-dim);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition:
+    color var(--dur-fast) var(--ease-ui),
+    text-decoration-color var(--dur-fast) var(--ease-ui);
 }
 
 .contact__socials a:hover,
 .contact__socials a:focus-visible {
-  color: var(--fg);
+  color: var(--ink);
+  text-decoration-color: var(--accent);
 }
 
 .contact__clock {
   margin-top: var(--space-4);
-  text-shadow: var(--text-scrim);
 }
 
 .contact__footer {
@@ -129,15 +228,38 @@
   color: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
+  text-decoration-color: var(--ink-line-strong);
+  transition:
+    color var(--dur-fast) var(--ease-ui),
+    text-decoration-color var(--dur-fast) var(--ease-ui);
 }
 
-.contact__footer span {
-  text-shadow: var(--text-scrim);
+.contact__footer a:hover,
+.contact__footer a:focus-visible {
+  color: var(--ink);
+  text-decoration-color: var(--accent);
+}
+
+.contact__footer a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 @media (max-width: 768px) {
   .section.section--contact {
     min-height: 135svh;
+  }
+
+  /* Full-width text needs the light under all of it, not down one side —
+     the same inversion of Section.css's phone rule. */
+  .section.section--contact::before,
+  .section.section--contact[data-side='right']::before {
+    background: linear-gradient(
+      to bottom,
+      rgb(255 244 232 / 0.05) 0%,
+      rgb(255 244 232 / 0.42) 46%,
+      rgb(255 244 232 / 0.58) 100%
+    );
   }
 
   .contact__footer {

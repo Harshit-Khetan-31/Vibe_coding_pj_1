@@ -20,6 +20,32 @@ import './Hud.css'
 const pad = (value: number, width: number) =>
   Math.max(0, Math.round(value)).toString().padStart(width, '0')
 
+/* ---- the finale's ink mode ------------------------------------------------ */
+
+/**
+ * The instruments are off-white on a night sky for the whole flight, and the
+ * flight ends over a golden-hour close-up where off-white stops being legible
+ * — the same problem CONTACT has, and it gets the same answer: ink plus a
+ * light halo. What decides it is how much of the screen CONTACT covers, since
+ * that is what is actually behind the readouts. Two thresholds, so a frame of
+ * scroll jitter at the boundary cannot flicker the fade — the same hysteresis
+ * the propeller reveal uses in `store.ts`.
+ *
+ * Coverage rather than the store's `isContactRevealed`: that signal is about
+ * the propeller filling the frame and is forced on by the header jump, while
+ * this one has to follow the sky both ways, including back up.
+ *
+ * It is resolved in the frame loop off `progress`, not by an
+ * IntersectionObserver. Observer callbacks are delivered on the main thread
+ * and, on a machine where the scene is expensive, arrive whole seconds late —
+ * measured here as the instruments still being off-white after the jump had
+ * already landed on the bright sky. CONTACT's box is measured once per
+ * geometry version instead, exactly as the header measures its scroll limit,
+ * and the per-frame part is arithmetic that reads no layout.
+ */
+const HUD_INK_ON = 0.62
+const HUD_INK_OFF = 0.5
+
 export function Hud() {
   const phaseIndex = useSyncExternalStore(subscribePhase, getPhaseIndex, () => 0)
   useSyncExternalStore(subscribeGeometry, getGeometryVersion, () => 0)
@@ -35,6 +61,57 @@ export function Hud() {
   const cursor = useRef<HTMLSpanElement>(null)
   const index = useRef<HTMLDivElement>(null)
   const root = useRef<HTMLDivElement>(null)
+
+  /**
+   * The ink crossfade. One attribute on the root; the stylesheet owns the rest.
+   * Deliberately outside React — it is a per-frame decision, and re-rendering
+   * the instruments for it would put the frame loop back through the reconciler.
+   */
+  useEffect(() => {
+    const el = root.current
+    if (!el) return
+
+    let top = 0
+    let height = 0
+    let limit = 1
+    let viewport = window.innerHeight
+
+    const measure = () => {
+      viewport = window.innerHeight
+      limit = Math.max(1, document.documentElement.scrollHeight - viewport)
+      const contact = document.getElementById('contact')
+      if (!contact) {
+        height = 0
+        return
+      }
+      const rect = contact.getBoundingClientRect()
+      top = rect.top + window.scrollY
+      height = rect.height
+    }
+    measure()
+
+    let ink = false
+    const frame = () => {
+      if (height <= 0) return
+      const y = state.progress * limit
+      const visible = Math.min(top + height, y + viewport) - Math.max(top, y)
+      const cover = Math.max(0, visible) / viewport
+      const next = ink ? cover > HUD_INK_OFF : cover >= HUD_INK_ON
+      if (next === ink) return
+      ink = next
+      el.dataset.ink = next ? 'true' : 'false'
+    }
+    frame()
+
+    window.addEventListener('resize', measure)
+    const unsubscribeGeometry = subscribeGeometry(measure)
+    const unsubscribeFrame = subscribeFrame(frame)
+    return () => {
+      window.removeEventListener('resize', measure)
+      unsubscribeGeometry()
+      unsubscribeFrame()
+    }
+  }, [])
 
   useEffect(() => {
     let lastWaypoint = -2
@@ -88,7 +165,7 @@ export function Hud() {
   }, [])
 
   return (
-    <div className="hud" ref={root} aria-hidden="true">
+    <div className="hud" ref={root} data-ink="false" aria-hidden="true">
       <div className="hud__stack hud__stack--top">
         <div className="hud__inst">
           <span className="hud__key">ALT</span>

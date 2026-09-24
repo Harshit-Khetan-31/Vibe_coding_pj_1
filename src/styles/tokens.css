@@ -68,6 +68,9 @@
   --dur-fast: 0.35s;
   --dur-base: 0.6s;
   --dur-slow: 1.1s;
+  /* the instruments' ink crossfade at the finale — long enough to read as the
+     light changing rather than a repaint */
+  --dur-hud: 400ms;
 
   /* ---- text over the sky ------------------------------------------ */
   /* The one thing that buys off-white type its contrast back over a golden
@@ -82,11 +85,58 @@
     0 3px 18px rgb(4 4 10 / 0.55),
     0 6px 44px rgb(4 4 10 / 0.4);
 
+  /* ---- text over the *bright* sky (CONTACT) ------------------------ */
+  /* The finale ends in a golden-hour close-up: the sky behind CONTACT is
+     the brightest surface in the whole page, so the off-white palette above
+     inverts there. Measured on that sky, `--dim` lands at ~1.7:1 and even
+     pure white at ~2.5:1 — both unreadable. Ink is the answer, and the
+     scrim has to invert with it: a dark shadow under dark type only muddies
+     the edge, so CONTACT gets a soft light halo that lifts the sky *around*
+     each glyph instead. Scoped in Contact.css; defined here so the values
+     stay in one place. */
+  --ink: #1a1420;
+  /* Ink at roughly 72% of its weight — dimmed enough to rank below the
+     headline, dark enough that the footer credit still measures 4.9:1 over
+     the least helpful patch of sky at 1440. */
+  --ink-dim: #332c3b;
+  --ink-line: rgb(26 20 32 / 0.22);
+  --ink-line-strong: rgb(26 20 32 / 0.42);
+  /* Stacked for the same reason `--text-scrim` is: the wide soft glow is what
+     lifts the sky around a word, but the finale close-up also puts dark
+     propeller blades directly behind the type, and 18px of half-opacity light
+     spread over those leaves the smallest glyphs under 3:1. The two tighter
+     layers seat each glyph in its own light so the measured floor holds
+     wherever the blades happen to be. */
+  /* The accent, re-mixed for the bright end. #4B63FF is tuned to glow against
+     the night-blue top of the page; over the finale sky it measures ~2.8:1,
+     so CONTACT's accent is the same hue taken down to where it reads. */
+  --accent-ink: #242c94;
+  --text-halo:
+    0 0 4px rgb(255 240 225 / 0.85),
+    0 0 9px rgb(255 240 225 / 0.7),
+    0 0 18px rgb(255 240 225 / 0.5);
+  /* The same halo, tightened for 11–13px mono. A blur wide enough to flatter a
+     50px headline is mostly spent on empty sky around a 1px stroke, so the
+     small type gets its light packed in close instead — that difference is
+     worth ~1.5:1 to the clock and the footer at 1440, where the fuselage is
+     the darkest thing behind them. */
+  --text-halo-tight:
+    0 0 2px rgb(255 240 225 / 0.95),
+    0 0 5px rgb(255 240 225 / 0.85),
+    0 0 14px rgb(255 240 225 / 0.6);
+
+  /* ---- header ------------------------------------------------------ */
+  /* The instrument stack starts below this, so the bar and the readouts
+     never share a row. */
+  --header-h: clamp(56px, 7vh, 76px);
+
   /* ---- layers ----------------------------------------------------- */
   --z-world: 0;
   --z-content: 1;
   --z-hud: 2;
   --z-grain: 3;
+  --z-nav: 50;
+  --z-header: 60;
 
   color-scheme: dark;
 }
