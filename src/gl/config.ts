@@ -329,9 +329,53 @@ export const PROP_BLUR_TO = 22
 /** Geometry, as fractions of the disc radius. */
 export const PROP_BLADES = 3
 export const PROP_BLADE_WIDTH = 0.17
+/** Twist at the blade root, radians. */
 export const PROP_BLADE_TWIST = 0.38
+/**
+ * How much flatter the tip sits than the root. A real blade is twisted because
+ * the tip travels far faster than the root and would otherwise fly at a wildly
+ * different angle of attack; 25 degrees is the usual order for a light single.
+ */
+export const PROP_BLADE_TWIST_TIP_DEG = 25
 export const PROP_HUB_RADIUS = 0.13
 export const PROP_INK = '#171b2c'
+/** Satin, not lacquer: it should pick the sky up without becoming a mirror. */
+export const PROP_METALNESS = 0.3
+export const PROP_ROUGHNESS = 0.55
+export const PROP_ENV_INTENSITY = 0.9
+/** The painted tip warning band: the outer 8% of each blade. */
+export const PROP_TIP_FRACTION = 0.08
+export const PROP_TIP_COLOR = '#E8B923'
+
+/**
+ * The blur disc. It is a disc of *air* with blades somewhere inside it, so it
+ * is dark and it is faint — a bright one reads as a plastic plate stuck on the
+ * nose. The finale is the one place it opens up (see `FINALE_DISC_OPACITY`).
+ */
+export const PROP_DISC_OPACITY = 0.22
+export const PROP_DISC_COLOR = '#2a2b33'
+export const FINALE_DISC_OPACITY = 0.95
+
+/* ---- nav lights ---------------------------------------------------------- */
+
+/**
+ * Red left, green right, white tail strobe — the standard arrangement, and the
+ * cheapest possible cue that the aircraft is a real machine rather than a prop.
+ * The colours sit just above `BLOOM_THRESHOLD` so the bloom pass catches them
+ * and nothing else in the frame changes.
+ */
+export const NAV_LIGHT_RED = '#ff2d2d'
+export const NAV_LIGHT_GREEN = '#37ff6a'
+export const NAV_LIGHT_WHITE = '#ffffff'
+/** Sprite diameter as a fraction of the wingspan. */
+export const NAV_LIGHT_SIZE = 0.022
+/** Brightness of the steady wingtip lights and of the strobe at full flash. */
+export const NAV_LIGHT_INTENSITY = 1.06
+export const NAV_STROBE_INTENSITY = 1.35
+/** Double flash: two pulses this far apart, repeating on this period. */
+export const NAV_STROBE_PERIOD = 1.4
+export const NAV_STROBE_GAP = 0.13
+export const NAV_STROBE_WIDTH = 0.05
 
 /* ---- screen zones -------------------------------------------------------- */
 
