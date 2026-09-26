@@ -5,3 +5,15 @@ dist-ssr
 .DS_Store
 .vite
 tsconfig.tsbuildinfo
+
+# secrets — never commit these, even for a static site
+.env
+.env.*
+!.env.example
+
+# the raw, unconverted source download for the aircraft model. The asset
+# the site actually ships is public/models/plane.glb; this is the original
+# Sketchfab extract (scene.gltf + scene.bin + textures) kept only for
+# reference. If it's already tracked in git, `git rm -r --cached plane.glb`
+# once to stop tracking it (see the message from Claude for the exact steps).
+/plane.glb/
